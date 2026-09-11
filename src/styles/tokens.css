@@ -1,0 +1,174 @@
+/* ---------------------------------------------------------------------------
+   SEMANTIC DESIGN TOKENS
+   ---------------------------------------------------------------------------
+   Light and dark are defined as two valuations of ONE semantic vocabulary.
+   Components never reference a raw colour; they reference a role
+   (surface-panel, text-secondary, series-2). Swapping theme swaps values on
+   <html data-theme>, so DOM and SVG charts change in the same paint.
+
+   COLOUR RULEBOOK
+   - --positive / --negative are SEMANTIC ONLY: variance and favourability.
+     They are never used as a chart series colour.
+   - --series-* carry data series. They are navy/slate/blue — deliberately
+     low-chroma so that the only saturated colour on a page is meaningful.
+   - Direction (glyph) and sentiment (colour) are always encoded separately.
+--------------------------------------------------------------------------- */
+
+:root,
+[data-theme="light"] {
+  /* Surfaces — layered off-white, never pure white everywhere */
+  --surface-canvas: #f7f9fb;
+  --surface-panel: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f2f5f8;
+  --surface-nav: #ffffff;
+  --surface-inset: #eef2f6;
+
+  /* Borders — carry structure instead of shadows */
+  --border-subtle: #e4eaf0;
+  --border-default: #d8e0e8;
+  --border-strong: #c3cedb;
+
+  /* Text */
+  --text-primary: #132435;
+  --text-secondary: #526273;
+  --text-tertiary: #7c8b9c;
+  --text-inverse: #ffffff;
+
+  /* Brand / interactive */
+  --accent: #132435;
+  --accent-hover: #0e1b28;
+  --accent-soft: #e9eef3;
+  --accent-on: #ffffff;
+  --focus-ring: #79a9d8;
+
+  /* Semantic — variance only */
+  --positive: #1f9c63;
+  --positive-soft: #e4f4ec;
+  --negative: #d4504f;
+  --negative-soft: #fbeaea;
+  --caution: #b8842a;
+  --caution-soft: #f9f0dd;
+  --neutral: #526273;
+  --neutral-soft: #eef2f6;
+
+  /* Chart series — restrained, ordered by emphasis */
+  --series-1: #132435; /* primary / actual */
+  --series-2: #79a9d8; /* comparison / prior year */
+  --series-3: #526273; /* tertiary */
+  --series-4: #a9c4dd;
+  --series-5: #bcc7d3;
+  --series-reference: #8b9aab; /* budget / plan lines */
+
+
+  /* --- Chart palettes -------------------------------------------------------
+     Three palettes, because colour does three different jobs here.
+
+     1. SERIES (scenario): actual vs last year vs budget. Not categorical —
+        the scenarios are ranked by emphasis, and identity is carried by FORM
+        (solid fill / muted fill / dashed line) as well as value, so the
+        low-chroma navy set is correct and stays restrained.
+     2. CATEGORICAL: genuine unordered members (channels, entities). Validated
+        with scripts/validate_palette.js — passes lightness band, chroma floor,
+        CVD separation, normal-vision floor and contrast against the surface.
+        Assigned in fixed order and never cycled.
+     3. SEQUENTIAL: magnitude (cost composition, share). One hue, light to dark,
+        validated as an ordinal ramp.
+
+     Diverging uses the semantic positive/negative pair with a neutral midpoint
+     and always ships the value in the cell, so colour is never the only
+     encoding.
+  --------------------------------------------------------------------------- */
+  --cat-1: #005b8c;
+  --cat-2: #158970;
+  --cat-3: #8b5e11;
+  --cat-4: #714688;
+  --cat-5: #3390b6;
+
+  --seq-1: #0e2338;
+  --seq-2: #1a3a57;
+  --seq-3: #275279;
+  --seq-4: #376c97;
+  --seq-5: #4b87b3;
+  --seq-6: #65a0c6;
+  --seq-7: #8ab6d6;
+
+  --diverging-negative: #c25f5c;
+  --diverging-neutral: #eef2f6;
+  --diverging-positive: #2f9a6b;
+
+  --grid-line: #e9eef3;
+  --axis-text: #7c8b9c;
+
+  /* Elevation — used sparingly, only for true overlays */
+  --shadow-overlay: 0 8px 24px -8px rgb(19 36 53 / 0.16),
+    0 2px 6px -2px rgb(19 36 53 / 0.08);
+}
+
+[data-theme="dark"] {
+  /* Layered navy/slate, not black */
+  --surface-canvas: #0b1622;
+  --surface-panel: #0e1b28;
+  --surface-raised: #142333;
+  --surface-sunken: #0a131d;
+  --surface-nav: #0e1b28;
+  --surface-inset: #16273a;
+
+  --border-subtle: #1d3145;
+  --border-default: #24394f;
+  --border-strong: #32495f;
+
+  --text-primary: #e9eef3;
+  --text-secondary: #9aabbd;
+  --text-tertiary: #6e8298;
+  --text-inverse: #0e1b28;
+
+  --accent: #e9eef3;
+  --accent-hover: #ffffff;
+  --accent-soft: #1b2e42;
+  --accent-on: #0e1b28;
+  --focus-ring: #79a9d8;
+
+  --positive: #35c489;
+  --positive-soft: #11302a;
+  --negative: #ef7a7a;
+  --negative-soft: #34191d;
+  --caution: #d9a441;
+  --caution-soft: #33280f;
+  --neutral: #9aabbd;
+  --neutral-soft: #18293c;
+
+  --series-1: #c8d8e8;
+  --series-2: #79a9d8;
+  --series-3: #6e8298;
+  --series-4: #456d90;
+  --series-5: #2f4a66;
+  --series-reference: #8b9aab;
+
+
+  /* Dark mode is SELECTED, not flipped: each palette was re-validated against
+     the dark surface (#0e1b28) with that mode's narrower lightness band. */
+  --cat-1: #4097d1;
+  --cat-2: #078068;
+  --cat-3: #9b6b25;
+  --cat-4: #8f5f99;
+  --cat-5: #3b9ac2;
+
+  --seq-1: #cfe0ee;
+  --seq-2: #a9c6de;
+  --seq-3: #87aecc;
+  --seq-4: #6795b8;
+  --seq-5: #4c7ca2;
+  --seq-6: #38648a;
+  --seq-7: #2a5172;
+
+  --diverging-negative: #d4706d;
+  --diverging-neutral: #16273a;
+  --diverging-positive: #35a97a;
+
+  --grid-line: #1d3145;
+  --axis-text: #6e8298;
+
+  --shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.6),
+    0 2px 6px -2px rgb(0 0 0 / 0.4);
+}
