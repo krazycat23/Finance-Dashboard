@@ -20,7 +20,7 @@
 
 import { MockDataAdapter } from "@/data/mock";
 import { setReportingDataset } from "@/domain/data";
-import { authoritativeRules, buildImportedDataset, classifyDataset, resolveAccountRule, suggestFieldMappings, unpivotWideRows, validateWorkspace, type ImportWorkspace } from "@/domain/ingestion";
+import { authoritativeRules, buildImportedDataset, classifyDataset, detectTableRange, resolveAccountRule, suggestFieldMappings, unpivotWideRows, validateWorkspace, type ImportWorkspace } from "@/domain/ingestion";
 import type { PeriodSelection } from "@/domain/models";
 import {
   selectBalanceSheet, selectCashBridge, selectCashFlow, selectEbitdaBridge,
@@ -248,13 +248,20 @@ expect("activation blocks incomplete finance mapping", !buildImportedDataset({ .
 expect("sales fixture classification", classifyDataset(["Order ID", "Customer", "Plan", "Revenue", "Quantity"]).type === "sales", "services-shaped sales columns were not classified as sales");
 const wide = unpivotWideRows([{ GL: "4000", Jan: 10, Feb: 20 }], { identifierColumns: ["GL"], valueColumns: ["Jan", "Feb"], periodFromColumn: true, valueField: "Amount" });
 expect("wide TB unpivot", wide.length === 2 && wide[1].Amount === 20 && wide[1].period === "Feb", "wide balance columns were not retained with period lineage");
-const mappingDataset = { id: "fixture-gl-map", sourceFileId: "mapping-file", columns: [], rows: [{ "GL Code": "41001", "GL Description": "Markdown", "P1 - Section": "Income", "P2 - Header": "Sales", "P3 - Sub-Header": "Markdowns", "P&L Section": "Income", "Sign Convention": "negative" }], inferred: { type: "gl_mapping" as const, confidence: 1, reasons: [] }, status: "staged" as const, warnings: [], errors: [] };
+const mappingDataset = { id: "fixture-gl-map", sourceFileId: "mapping-file", columns: [], rows: [{ "GL Code": "41001", "GL Description": "Markdown", "P1 - Section": "Income", "P2 - Header": "Sales", "P3 - Sub-Header": "Markdowns", "P&L Section": "Income", "Sign Convention": "cost" }], inferred: { type: "gl_mapping" as const, confidence: 1, reasons: [] }, status: "staged" as const, warnings: [], errors: [] };
 const authWorkspace = { ...workspace, sources: [{ id: "mapping-file", companyId: importCompany.id, filename: "FF_GL_PL_Mapping.xlsx", fileType: "xlsx" as const, uploadedAt: "2026-01-01" }], datasets: [fixtureDataset, mappingDataset] };
 const auth = authoritativeRules(authWorkspace)[0];
 expect("authoritative GL mapping precedence", auth?.priority === 1_000_000 && resolveAccountRule("41001", "Markdown", [...authoritativeRules(authWorkspace), ...workspace.rules])?.id === auth?.id, "exact workbook mapping did not override generic rules");
 expect("mapping provenance and hierarchy preservation", auth?.mappingSource === "authoritative_file" && auth.reportingHierarchy?.p3 === "Markdowns" && auth.sourceMultiplier === -1, "authoritative mapping lost provenance, P1/P2/P3, or sign treatment");
 const rangeFixture = { ...fixtureDataset, id: "range-fixture", tableRange: { headerRow: 1, startRow: 2, endRow: 2, confidence: .3, requiresConfirmation: true } };
 expect("range confirmation blocks activation", validateWorkspace({ ...workspace, datasets: [rangeFixture] }).some(issue => issue.id === "range-fixture:range"), "unconfirmed source range did not block activation");
+const mappingRange = detectTableRange([["GL Code", "GL Description", "P1 - Section", "P2 - Header", "P3 - Sub-Header", "P&L Section", "Sign Convention"], ["1000", "Gross Sales", "Income", "Sales", "Gross Sales", "Income", "income"]]);
+const augustRange = detectTableRange([["August trial balance"], ["Entity", "GL Code", "Cost Centre", "2026-07", "2026-08", "2026-09"], ["A", "1000", "CC1", 10, 20, 30]]);
+const pivotRange = detectTableRange([["Report filter", "TimePeriod"], ["Row Labels", "Column Labels"], ["Grand Total", 100]]);
+expect("schema header beats Gross Sales data", mappingRange?.headerRow === 1, "mapping data row outranked its schema header");
+expect("later August header is recognised", augustRange?.headerRow === 2, "header detector did not distinguish title row from schema row");
+expect("pivot blocks require table selection", !!pivotRange?.requiresConfirmation, "pivot/filter block was silently accepted");
+expect("literal income and cost signs", authoritativeRules({ ...authWorkspace, datasets: [{ ...mappingDataset, rows: [{ "GL Code": "1000", "Sign Convention": "income" }, { "GL Code": "2060", "Sign Convention": "cost" }] }] }).map(rule => rule.sourceMultiplier).join(",") === "1,-1", "income/cost source multipliers are incorrect");
 
 // --- Report ---------------------------------------------------------------
 if (failures.length === 0) {

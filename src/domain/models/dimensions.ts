@@ -29,6 +29,7 @@ export type StatementType = "pnl" | "balance" | "cashflow";
  * company with 4,000 GL accounts and one with 40 render identically.
  */
 export type StatementLine =
+  | "unconfirmed"
   // P&L
   | "revenue"
   | "costOfSales"
@@ -75,6 +76,7 @@ export type StatementLine =
 export interface Account extends DimensionBase {
   statement: StatementType;
   /** Canonical line this account aggregates into. */
+  /** "unconfirmed" is intentionally excluded from calculations until a role is approved. */
   line: StatementLine;
   /**
    * Natural sign convention. Costs are stored as positive magnitudes and

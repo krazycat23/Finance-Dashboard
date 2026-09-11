@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { classifyDataset, profileColumn } from "./profile";
-import { detectTableRange } from "./tableDetection";
+import { detectTableRange, rowsFromRange } from "./tableDetection";
 import type { Classification, ImportSource, StagedDataset } from "./types";
 
 const id = () => crypto.randomUUID();
@@ -13,7 +13,7 @@ export async function stageLocalFile(companyId: string, file: File): Promise<{ s
   const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const source: ImportSource = { id: sourceId, companyId, filename: file.name, fileType: type, uploadedAt: new Date().toISOString(), sheetNames: workbook.SheetNames };
   const datasets = workbook.SheetNames.map((sheetName) => {
-    const grid = rowsForSheet(workbook.Sheets[sheetName]); const tableRange=detectTableRange(grid); const header=tableRange ? grid[tableRange.headerRow-1].map((value,index)=>String(value ?? `Column ${index+1}`).trim()) : []; const rows=(tableRange?grid.slice(tableRange.startRow-1,tableRange.endRow):[]).filter((row)=>row.some((value)=>value!==null&&value!=="")).map((row)=>Object.fromEntries(header.map((column,index)=>[column,row[index] ?? null])));
+    const grid = rowsForSheet(workbook.Sheets[sheetName]); const tableRange=detectTableRange(grid); const rows=tableRange ? rowsFromRange(grid, tableRange) : []; const header=tableRange ? Object.keys(rows[0] ?? {}) : [];
     const columns = header;
     const inferred = classifyDataset(columns);
     // The mapping workbook is a first-class authoritative input, not an account-master guess.
