@@ -14,9 +14,10 @@ import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
 export type CashScenario = "actual" | "budget" | "forecast";
 
 function scenarioId(scenario: CashScenario): string {
-  const definition = getReportingDataset().scenarios.find((item) => item.kind === scenario);
-  if (!definition) throw new Error(`Dataset does not provide a ${scenario} scenario.`);
-  return definition.id;
+  const dataset = getReportingDataset();
+  const id = dataset.scenarioRoles[scenario];
+  if (!dataset.scenarios.some((item) => item.id === id)) throw new Error(`Dataset does not provide a ${scenario} scenario.`);
+  return id;
 }
 
 function scenarioRecords(scenario: CashScenario): CashFlowRecord[] {

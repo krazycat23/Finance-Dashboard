@@ -14,8 +14,9 @@ import {
   selectRefreshLog, selectUnmappedAccounts, selectUnmappedProducts,
   type DataIssue, type MappingSummary, type ReconciliationLine, type RefreshEvent,
 } from "@/domain/selectors";
-import { companyConfig } from "@/config/company";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { formatCurrency, formatNumber, formatPercentage } from "@/utils/format";
+import { OnboardingPanel } from "@/components/ingestion/OnboardingPanel";
 
 /**
  * DATA QUALITY, MAPPING & RECONCILIATION
@@ -48,15 +49,16 @@ const STATUS_TONE: Record<DataIssue["status"], BadgeTone> = {
 };
 
 export function DataMappingPage() {
+  const dataset = useReportingDataset();
   const [issueFilter, setIssueFilter] = useState<IssueFilter>("all");
 
-  const health = useMemo(() => selectDataHealth(), []);
-  const mapping = useMemo(() => selectMappingSummary(), []);
-  const reconciliation = useMemo(() => selectReconciliation(), []);
-  const issues = useMemo(() => selectDataIssues(), []);
-  const refresh = useMemo(() => selectRefreshLog(), []);
-  const unmappedAccounts = useMemo(() => selectUnmappedAccounts(), []);
-  const unmappedProducts = useMemo(() => selectUnmappedProducts(), []);
+  const health = useMemo(() => selectDataHealth(), [dataset.id]);
+  const mapping = useMemo(() => selectMappingSummary(), [dataset.id]);
+  const reconciliation = useMemo(() => selectReconciliation(), [dataset.id]);
+  const issues = useMemo(() => selectDataIssues(), [dataset.id]);
+  const refresh = useMemo(() => selectRefreshLog(), [dataset.id]);
+  const unmappedAccounts = useMemo(() => selectUnmappedAccounts(), [dataset.id]);
+  const unmappedProducts = useMemo(() => selectUnmappedProducts(), [dataset.id]);
 
   const filteredIssues = useMemo(() => {
     if (issueFilter === "open") return issues.filter((i) => i.status !== "Resolved");
@@ -185,7 +187,7 @@ export function DataMappingPage() {
       align: "left",
       render: (row) => (
         <span className="text-secondary tnum">
-          {new Date(row.completedAt).toLocaleString(companyConfig.locale, {
+          {new Date(row.completedAt).toLocaleString(dataset.profile.locale, {
             day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
           })}
         </span>
@@ -251,6 +253,7 @@ export function DataMappingPage() {
       />
 
       <PageSections>
+        <OnboardingPanel />
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.6fr] gap-5">
           <Panel flush>
             <PanelHeader title="Data health score" meta={health.grade} />
@@ -332,7 +335,7 @@ export function DataMappingPage() {
             <StatTile
               icon={Clock}
               label="Last refresh"
-              value={lastRefresh.toLocaleString(companyConfig.locale, {
+              value={lastRefresh.toLocaleString(dataset.profile.locale, {
                 day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
               })}
               tone="neutral"

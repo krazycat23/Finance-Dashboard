@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
   type ReactNode,
 } from "react";
-import { companyConfig } from "@/config/company";
+import { useReportingDataset } from "./ReportingDataProvider";
 
 export type ThemeMode = "light" | "dark";
 
@@ -16,14 +16,14 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const STORAGE_KEY = "reporting-engine:theme";
 
-function readInitialTheme(): ThemeMode {
+function readInitialTheme(defaultTheme: ThemeMode = "light"): ThemeMode {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
     // Private browsing or blocked storage: fall through to the configured default.
   }
-  return companyConfig.defaultTheme;
+  return defaultTheme;
 }
 
 /**
@@ -32,7 +32,8 @@ function readInitialTheme(): ThemeMode {
  * the SVG charts change in the same paint rather than in two steps.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(readInitialTheme);
+  const { profile } = useReportingDataset();
+  const [theme, setThemeState] = useState<ThemeMode>(() => readInitialTheme(profile.defaultTheme));
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);

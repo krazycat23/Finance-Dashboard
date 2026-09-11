@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { companyConfig } from "@/config/company";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { navigation } from "@/config/navigation";
 import { cn } from "@/utils/cn";
 
@@ -14,6 +14,7 @@ import { cn } from "@/utils/cn";
  */
 
 export function Sidebar() {
+  const { profile } = useReportingDataset();
   return (
     <nav
       aria-label="Primary"
@@ -21,7 +22,7 @@ export function Sidebar() {
     >
       <div className="px-5 h-[52px] flex items-center border-b border-subtle shrink-0">
         <span className="text-[12.5px] font-semibold tracking-[0.16em] uppercase text-primary truncate">
-          {companyConfig.shortName ?? companyConfig.companyName}
+          {profile.shortName ?? profile.companyName}
         </span>
       </div>
 
@@ -67,10 +68,10 @@ export function Sidebar() {
 
       <div className="px-4 py-3 border-t border-subtle shrink-0">
         <div className="text-[10.5px] text-tertiary leading-snug">
-          {companyConfig.companyName} · {companyConfig.tagline}
+          {profile.companyName} · {profile.tagline}
         </div>
         <div className="text-[10.5px] text-tertiary tnum mt-0.5">
-          Reporting currency {companyConfig.currency}
+          Reporting currency {profile.reportingCurrency}
         </div>
       </div>
     </nav>

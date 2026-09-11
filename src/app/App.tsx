@@ -25,9 +25,9 @@ import { SettingsPage } from "@/pages/settings/SettingsPage";
  */
 export function App() {
   return (
-    <ThemeProvider>
-      <ReportingDataProvider adapter={reportingAdapter}>
-      <FilterProvider>
+    <ReportingDataProvider adapter={reportingAdapter}>
+      <ThemeProvider>
+        <FilterProvider>
         <BrowserRouter>
           <Routes>
             <Route element={<AppShell />}>
@@ -46,8 +46,8 @@ export function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      </FilterProvider>
-      </ReportingDataProvider>
-    </ThemeProvider>
+        </FilterProvider>
+      </ThemeProvider>
+    </ReportingDataProvider>
   );
 }

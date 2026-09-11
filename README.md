@@ -67,12 +67,13 @@ Everything below is arranged against those two failures.
 Dependencies point strictly downward. A component never imports mock data.
 
 ```
-config/          company, navigation, KPI boards        <- swap per client
+config/          application defaults, navigation, KPI boards
    |
+domain/data/     ReportingDataset contract + active data service
 domain/models/   canonical types: dimensions, facts, periods
 domain/metrics/  MetricDefinition registry (format, favourable direction)
    |
-data/mock/       deterministic seeded generator -> canonical facts
+data/mock/       MockDataAdapter -> ReportingDataset (active demo adapter)
    |
 domain/selectors/  pure functions: facts + filters -> view models
    |
@@ -107,16 +108,17 @@ src/
                              ColumnChart, HeatGrid, ChartFrame, chartTheme
     tables/                  DataTable, StatementTable
   config/
-    company.ts               <- the file a new engagement edits first
+    company.ts               mock-generator defaults only
     navigation.ts
     kpiBoards.ts
   domain/
+    data/                    ReportingDataset, adapter contract, active service
     models/                  Period, Entity, Account, FinanceRecord, SalesRecord...
     metrics/                 registry, variance semantics
     selectors/               core, kpi, statements, cashflow, sales, drivers,
                              forecast, operational, insights, dataQuality
     calendar.ts              fiscal calendar (the ONLY place fiscal maths lives)
-  data/mock/                 seeded generator + consistency validator
+  data/mock/                 MockDataAdapter + seeded demo data
   utils/format.ts            the only place a number becomes a string
   styles/tokens.css          semantic design tokens, light + dark
 scripts/verify.ts            the consistency acceptance test
@@ -275,28 +277,55 @@ Enforced in the chart components, not left to the caller:
 
 ## Configuring a new company
 
-1. **`src/config/company.ts`** — name, currency and symbol, default scale,
-   fiscal year start month, fiscal year labelling, periodicity, locale, default
-   entity and theme, and the current reporting period.
-2. **`src/config/navigation.ts`** — reorder or hide sections.
-3. **`src/config/kpiBoards.ts`** — which operational metrics the client tracks
+A new company is an adapter plus data, not a replacement of application source
+files. An adapter returns one `ReportingDataset`: its company profile (name,
+currency, locale, scale and calendar metadata), dimensions, facts, scenario
+catalogue/roles, forecast presentation inputs, and Data & Mapping results.
+`ReportingDataProvider` activates that dataset; formatting, branding, filters
+and selectors all resolve from the active profile. Changing dataset identity
+remounts reporting state and advances the selector-cache revision, preventing
+entity, period or computed values leaking between companies.
+
+1. Implement a `ReportingDataAdapter` that returns a `ReportingDataset`.
+   `MockDataAdapter` is the reference implementation.
+2. Populate the scenario catalogue and explicit role ids (`actual`, `budget`,
+   `forecast`); additional budget revisions and forecast vintages can coexist.
+3. Populate typed mapping summaries, unmapped members, issues,
+   reconciliations and import history for Data & Mapping.
+4. **`src/config/navigation.ts`** — reorder or hide sections.
+5. **`src/config/kpiBoards.ts`** — which operational metrics the client tracks
    and how they group. A configured metric with no data is reported as
    *awaiting data*, never rendered as a zero.
-4. **`src/domain/metrics/registry.ts`** — add or adjust metric definitions
+6. **`src/domain/metrics/registry.ts`** — add or adjust metric definitions
    (unit, precision, favourable direction).
-5. **Dimensions** — replace `src/data/mock/dimensions.ts` with the client's
+7. **Dimensions** — supply the client's
    entities, accounts, channels, products, locations. The chart of accounts maps
    to canonical statement lines via `Account.line`; this is the main onboarding
    task and the Data & Mapping page tracks its completeness.
-6. **Replace `src/data/mock/` with a data adapter** returning the same canonical
-   shapes. **Nothing above that layer changes** — that is the entire point of
-   the arrangement.
-7. **Run `npm run verify`.** If the client's data does not satisfy the
+8. **Run `npm run verify`.** If the client's data does not satisfy the
    identities, it is reported before anyone sees a dashboard.
 
 Fiscal calendar maths lives only in `src/domain/calendar.ts`. Nothing else may
 infer a fiscal year from a date, so a July-start and a January-start company
 produce identical downstream behaviour.
+
+Phase 2 attaches raw files → staging → mapping → validation →
+`ReportingDataset` at the adapter boundary.
+
+## Local file onboarding (Phase 2)
+
+Data & Mapping includes a local company-onboarding panel. CSV and XLSX files
+are parsed in the browser (each workbook sheet becomes a staged dataset), then
+profiled, classified and mapped before activation. The ingestion domain keeps
+raw staged rows immutable and exposes deterministic column suggestions,
+account-rule precedence, calendar relationships, validation issues and real
+raw-to-canonical reconciliations. `ImportedCompanyAdapter` turns a validated
+workspace into the same `ReportingDataset` used by every existing page.
+
+`ImportWorkspaceStore` abstracts browser persistence; the IndexedDB
+implementation keeps company profiles, sources, staging metadata and mappings
+local so uploaded finance data is never sent to an external service. Phase 2
+does not include cloud connectors, APIs or authentication.
 
 ---
 

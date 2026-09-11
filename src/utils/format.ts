@@ -1,4 +1,4 @@
-import { companyConfig } from "@/config/company";
+import { getReportingDataset } from "@/domain/data";
 import type { MetricDefinition, MetricFormat } from "@/domain/metrics/types";
 
 /**
@@ -50,7 +50,7 @@ function resolveScale(value: number, scale: Scale): Exclude<Scale, "auto"> {
 }
 
 function group(value: number, precision: number): string {
-  return new Intl.NumberFormat(companyConfig.locale, {
+  return new Intl.NumberFormat(getReportingDataset().profile.locale, {
     minimumFractionDigits: precision,
     maximumFractionDigits: precision,
   }).format(value);
@@ -99,8 +99,9 @@ export function formatCurrency(
   if (value == null || !Number.isFinite(value)) return "—";
   if (options.dashForZero && value === 0) return "—";
 
-  const symbol = options.currencySymbol ?? companyConfig.currencySymbol;
-  const scale = resolveScale(value, options.scale ?? companyConfig.defaultScale);
+  const profile = getReportingDataset().profile;
+  const symbol = options.currencySymbol ?? profile.currencySymbol;
+  const scale = resolveScale(value, options.scale ?? profile.defaultScale);
   const scaled = value / SCALE_DIVISORS[scale];
   const precision =
     options.precision ?? (scale === "units" ? 0 : Math.abs(scaled) < 100 ? 1 : 0);
@@ -267,6 +268,6 @@ export function formatAxis(value: number, format: MetricFormat = "currency"): st
 
 /** The unit caption a chart shows once, instead of on every tick. */
 export function axisUnitLabel(scale: Exclude<Scale, "auto"> = "millions"): string {
-  const symbol = companyConfig.currencySymbol;
+  const symbol = getReportingDataset().profile.currencySymbol;
   return scale === "millions" ? `${symbol}M` : scale === "thousands" ? `${symbol}K` : symbol;
 }

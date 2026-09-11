@@ -1,4 +1,4 @@
-import { getReportingDataset } from "@/domain/data";
+import { getReportingDataset, getReportingDatasetRevision } from "@/domain/data";
 import type {
   Period,
   PeriodBasis,
@@ -121,7 +121,7 @@ export function aggregateLines(
   entityIds: string[],
   scenario: Scenario,
 ): LineTotals {
-  const key = `${scenario}|${entityIds.join(",")}|${periodIds.join(",")}`;
+  const key = `${getReportingDatasetRevision()}|${scenario}|${entityIds.join(",")}|${periodIds.join(",")}`;
   const cached = lineCache.get(key);
   if (cached) return cached;
 
@@ -141,7 +141,8 @@ export function aggregateLines(
       continue;
     }
 
-    const scenarioDefinition = data.scenarios.find((definition) => definition.kind === scenario);
+    const roleId = scenario === "priorYear" ? undefined : data.scenarioRoles[scenario];
+    const scenarioDefinition = roleId ? data.scenarios.find((definition) => definition.id === roleId) : undefined;
     const value = scenarioDefinition
       ? record.scenarioValues?.find((item) => item.scenarioId === scenarioDefinition.id)?.value ?? record[scenario]
       : record[scenario];

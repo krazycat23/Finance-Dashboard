@@ -20,6 +20,7 @@
 
 import { MockDataAdapter } from "@/data/mock";
 import { setReportingDataset } from "@/domain/data";
+import { buildImportedDataset, classifyDataset, resolveAccountRule, suggestFieldMappings, type ImportWorkspace } from "@/domain/ingestion";
 import type { PeriodSelection } from "@/domain/models";
 import {
   selectBalanceSheet, selectCashBridge, selectCashFlow, selectEbitdaBridge,
@@ -211,6 +212,40 @@ expect(
   misdated.length === 0,
   `${misdated.length} period(s) marked actual beyond the reporting date`,
 );
+
+// --- Dataset switching must not leak selector cache values -----------------
+const cachePeriod = dataset.periods.find((period) => period.isActual)!;
+const cacheEntity = dataset.defaultEntityId;
+const beforeSwitch = selectLines({ entityId: cacheEntity, basis: "MTD", periodId: cachePeriod.id }).actual.revenue ?? 0;
+const alternate = structuredClone(dataset);
+alternate.id = `${dataset.id}-alternate`;
+const revenueAccountIds = new Set(alternate.dimensions.accounts.filter((account) => account.line === "revenue").map((account) => account.id));
+const revenueRecord = alternate.financeRecords.find((record) => revenueAccountIds.has(record.accountId) && record.periodId === cachePeriod.id && record.actual !== undefined && record.scenarioValues?.some((value) => value.scenarioId === alternate.scenarioRoles.actual));
+if (revenueRecord) {
+  revenueRecord.actual! += 1234;
+  const actualValue = revenueRecord.scenarioValues!.find((value) => value.scenarioId === alternate.scenarioRoles.actual)!;
+  actualValue.value += 1234;
+}
+setReportingDataset(alternate);
+const afterSwitch = selectLines({ entityId: cacheEntity, basis: "MTD", periodId: cachePeriod.id }).actual.revenue ?? 0;
+expect(
+  "dataset switch invalidates selector cache",
+  revenueRecord !== undefined && afterSwitch !== beforeSwitch,
+  "a value cached for the first dataset was returned after the active dataset changed",
+);
+
+// --- Local ingestion fixtures: different shapes, same canonical bridge -----
+const importCompany = { id: "fixture-services", createdAt: "2026-01-01", updatedAt: "2026-01-01", profile: { companyName: "Services Co", reportingCurrency: "USD", currencySymbol: "$", locale: "en-US", defaultScale: "thousands" as const, fiscalCalendar: { periodicity: "monthly" as const, fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" as const } } };
+const financeRows = [{ Period: "2026-01", Account: "41001", "Account Name": "Consulting revenue", Entity: "Services", Amount: "125000" }];
+const fixtureDataset = { id: "fixture-finance", sourceFileId: "fixture-file", columns: [], rows: financeRows, inferred: classifyDataset(Object.keys(financeRows[0])), confirmedType: "finance_actual" as const, status: "staged" as const, warnings: [], errors: [] };
+const fixtureMappings = suggestFieldMappings(fixtureDataset.id, Object.keys(financeRows[0])).map((mapping) => ({ ...mapping, status: mapping.canonicalField === "accountId" || mapping.canonicalField === "amount" ? "mapped" as const : mapping.status }));
+const workspace: ImportWorkspace = { company: importCompany, sources: [], datasets: [fixtureDataset], mappings: fixtureMappings, rules: [{ id: "broad", companyId: importCompany.id, priority: 1, kind: "prefix", value: "41*", statement: "pnl", line: "revenue", sign: 1 }, { id: "specific", companyId: importCompany.id, priority: 2, kind: "exact", value: "41001", statement: "pnl", line: "revenue", sign: 1 }], customDimensions: [], scenarios: [], calendar: { fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" }, issues: [], reconciliations: [] };
+const imported = buildImportedDataset(workspace);
+expect("ingestion classifies finance fixture", fixtureDataset.inferred.type === "finance_actual", "finance-shaped columns were not classified as finance actual");
+expect("mapping rule precedence", resolveAccountRule("41001", "Consulting revenue", workspace.rules)?.id === "specific", "specific account mapping did not override broad prefix rule");
+expect("raw to canonical preservation", imported.dataset?.financeRecords[0]?.actual === 125000, "canonical actual does not retain source amount");
+expect("activation blocks incomplete finance mapping", !buildImportedDataset({ ...workspace, mappings: workspace.mappings.filter((mapping) => mapping.canonicalField !== "amount") }).dataset, "missing required finance mapping did not block activation");
+expect("sales fixture classification", classifyDataset(["Order ID", "Customer", "Plan", "Revenue", "Quantity"]).type === "sales", "services-shaped sales columns were not classified as sales");
 
 // --- Report ---------------------------------------------------------------
 if (failures.length === 0) {

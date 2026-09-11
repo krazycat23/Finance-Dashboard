@@ -130,37 +130,25 @@ export function selectScenarios(selection: PeriodSelection): ScenarioRow[] {
   const revenue = selectFullYearOutlook(selection, "revenue");
   const ebitda = selectFullYearOutlook(selection, "ebitda");
 
-  const build = (
-    id: string,
-    name: string,
-    revenueFactor: number,
-    marginShift: number,
-    probability: number,
-    description: string,
-  ): ScenarioRow => {
-    const scenarioRevenue = revenue.actualToDate + revenue.forecastRemaining * revenueFactor;
+  const build = (input: { id: string; name: string; revenueFactor: number; marginShift: number; probability: number; description: string }): ScenarioRow => {
+    const scenarioRevenue = revenue.actualToDate + revenue.forecastRemaining * input.revenueFactor;
     const baseMargin = revenue.forecast ? ebitda.forecast / revenue.forecast : 0;
     const scenarioEbitda =
       ebitda.actualToDate +
-      ebitda.forecastRemaining * revenueFactor +
-      revenue.forecastRemaining * revenueFactor * marginShift;
+      ebitda.forecastRemaining * input.revenueFactor +
+      revenue.forecastRemaining * input.revenueFactor * input.marginShift;
     return {
-      id,
-      name,
+      id: input.id,
+      name: input.name,
       revenue: scenarioRevenue,
       ebitda: scenarioEbitda,
       ebitdaMargin: scenarioRevenue ? scenarioEbitda / scenarioRevenue : baseMargin,
       varianceToPlan: scenarioEbitda - ebitda.budget,
-      probability,
-      description,
+      probability: input.probability,
+      description: input.description,
     };
   };
-
-  return [
-    build("upside", "Upside", 1.075, 0.006, 0.2, "Trading momentum sustained, promotional depth held"),
-    build("base", "Base case", 1.0, 0, 0.6, "Current reforecast, no change in trading assumptions"),
-    build("downside", "Downside", 0.925, -0.008, 0.2, "Consumer softening and deeper clearance activity"),
-  ];
+  return (getReportingDataset().forecastConfiguration?.scenarios ?? []).map(build);
 }
 
 export interface DriverAssumption {
@@ -254,9 +242,6 @@ export interface RiskOpportunity {
 export function selectRisksAndOpportunities(selection: PeriodSelection): RiskOpportunity[] {
   const outlook = selectFullYearOutlook(selection, "ebitda");
   const scale = Math.abs(outlook.forecastRemaining) || Math.abs(outlook.forecast) * 0.1;
-  const inputs = getReportingDataset().demo?.risksAndOpportunities ?? [];
-  return inputs.map((input) => {
-    const item = input as Omit<RiskOpportunity, "value"> & { valueFactor: number };
-    return { ...item, value: scale * item.valueFactor };
-  });
+  return (getReportingDataset().forecastConfiguration?.risksAndOpportunities ?? [])
+    .map((item) => ({ ...item, value: scale * item.valueFactor }));
 }

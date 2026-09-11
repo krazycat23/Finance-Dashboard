@@ -158,3 +158,17 @@ The engine currently operates on monthly primary reporting periods. The configur
 2. Switch filters, selector modules and Data & Mapping support selectors to the active dataset boundary; remove all `@/data/mock` selector imports.
 3. Replace mock-only scenario-engine dependencies with canonical cash-flow and scenario facts; move retail narrative assumptions into mock demo metadata.
 4. Make verification discover representative entities and the reporting cut-off from the active dataset, then run typecheck, build and verify after each major step.
+
+## 8. Phase 1.6 — portability hardening
+
+The active `ReportingDataset` owns the runtime company profile, scenario role selection, forecast presentation inputs and the full typed Data & Mapping payload. Generic selectors derive only view models from this contract; mock adapter data is the sole location for demonstration mappings, issues, reconciliations and import events.
+
+The data service tracks a dataset revision and clears selector caches whenever the active dataset changes. `ReportingDataProvider` synchronises that service in a layout effect and keys the reporting subtree by dataset identity. Filter state is reset from incoming dataset defaults, so no entity, period or memoised page calculation can leak between companies. Formatting and company branding consume the same active profile, rather than build-time company configuration.
+
+Scenario catalogues declare one default id per role (`actual`, `budget`, `forecast`), allowing additional versions to coexist without a selector picking an arbitrary first record. Phase 2 attaches raw file staging, mapping, validation and import-result generation to these adapter contracts; it does not change components, pages or selectors.
+
+## 9. Phase 2 — local file-to-dataset bridge
+
+Phase 2 adds an ingestion domain below `ReportingDataset`, never alongside the reporting pages: `ImportSource → StagedDataset → classification/profile → field and mapping rules → calendar → validation/reconciliation → ImportedCompanyAdapter → ReportingDataset`. Staged rows remain immutable raw values. CSV and XLSX parsing run locally; XLSX sheets become independent staged datasets. IndexedDB is accessed through an `ImportWorkspaceStore` abstraction for company profiles, sources, staging metadata, mappings, rules and activated datasets, with an in-memory implementation for deterministic tests.
+
+Classification and field suggestions are deterministic alias/shape heuristics. Validation emits typed issues and prevents activation on blocking errors; reconciliation is calculated from staged and canonical totals, never synthetic. The Data & Mapping page gains a compact six-step onboarding workspace while retaining its existing dashboard and visual primitives. Fixture-driven verify tests cover retail and professional-services-shaped imports, mapping precedence, calendar links, validation, reconciliation and adapter/cache switching.
