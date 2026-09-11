@@ -1,5 +1,27 @@
 # Real-world ingestion findings
 
+## Current verification status
+
+The named supplied workbooks are not present in the accessible workspace for this run; only older unrelated workbook files are available. No supplied company workbook was added to Git (`test-data/private/` is ignored). Consequently, a genuine final activation and numeric reconciliation cannot be claimed yet.
+
+The implemented workflow now stages the files directly, retains source lineage, makes classification/scenario/range decisions explicit, reads `FF_GL_PL_Mapping.xlsx` as exact authoritative mapping input, and blocks activation for unresolved material GLs or unconfirmed source ranges. It will persist the onboarding workspace in IndexedDB.
+
+## What can activate
+
+- Monthly finance data can activate after required field mappings, confirmed table ranges, explicit scenarios, approved canonical calculation roles, and no material unresolved GLs.
+- Sales tables can activate into `salesRecords`; weekly sales populate `weeklySalesRecords` only when a confirmed weekly calendar resolves the grain.
+- FY27 weekly reporting can activate with the supplied 52-week calendar. Weekly FY26 YoY remains unavailable without an FY26 weekly relationship.
+
+## Still requiring manual decisions
+
+- Canonical arithmetic roles for hierarchy nodes such as gross sales, markdowns, net sales, COGS, trading income/costs, depreciation, interest and tax. The mapping workbook’s P&L hierarchy is retained but is deliberately not converted into guessed arithmetic.
+- Explicit selection/range confirmation for `Weekly Sales FY26.xlsx` pivot blocks.
+- Scenario confirmation: FY26 Final TB and AUG TB = Actual; FY27 Budget TB = Budget / Original Budget.
+
+## Modules unavailable without source mappings
+
+Balance sheet and cash flow remain unavailable for an imported company unless corresponding mappings/sources are supplied. The product must not manufacture these modules or reuse demo-company values.
+
 ## Supplied workbooks assessed
 
 | Workbook | Structure | Likely use | Ingestion treatment |

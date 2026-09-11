@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Upload } from "lucide-react";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
-import { stageLocalFile, suggestFieldMappings, buildImportedDataset, type ImportWorkspace, type IngestionCompany } from "@/domain/ingestion";
+import { stageLocalFile, suggestFieldMappings, buildImportedDataset, IndexedDbImportWorkspaceStore, type DatasetType, type ImportWorkspace, type IngestionCompany } from "@/domain/ingestion";
 import { useReportingDataController } from "@/app/providers/ReportingDataProvider";
 
 const makeCompany = (): IngestionCompany => ({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), profile: { companyName: "New company", shortName: "New company", reportingCurrency: "AUD", currencySymbol: "$", locale: "en-AU", defaultScale: "millions", fiscalCalendar: { periodicity: "monthly", fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" } } });
@@ -11,10 +11,13 @@ export function OnboardingPanel() {
   const { activateDataset, activateDefaultDataset } = useReportingDataController();
   const [company, setCompany] = useState<IngestionCompany>(makeCompany);
   const [workspace, setWorkspace] = useState<ImportWorkspace>({ company, sources: [], datasets: [], mappings: [], rules: [], customDimensions: [], scenarios: [], calendar: { fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" }, issues: [], reconciliations: [] });
+  const store = useMemo(() => new IndexedDbImportWorkspaceStore(), []);
+  useEffect(() => { void store.save({ ...workspace, company }); }, [workspace, company, store]);
   const result = useMemo(() => buildImportedDataset({ ...workspace, company }), [workspace, company]);
   const upload = async (files: FileList | null) => { if (!files) return; const staged = await Promise.all([...files].map((file) => stageLocalFile(company.id, file))); setWorkspace((current) => ({ ...current, sources: [...current.sources, ...staged.map((item) => item.source)], datasets: [...current.datasets, ...staged.flatMap((item) => item.datasets)], mappings: [...current.mappings, ...staged.flatMap((item) => item.datasets.flatMap((dataset) => suggestFieldMappings(dataset.id, dataset.columns.map((column) => column.name))))] })); };
   const blocking = result.issues.filter((issue) => issue.severity === "error").length;
   const canActivate = workspace.datasets.length > 0 && !!result.dataset && blocking === 0;
+  const updateDataset = (id: string, update: (dataset: ImportWorkspace["datasets"][number]) => ImportWorkspace["datasets"][number]) => setWorkspace(current => ({ ...current, datasets: current.datasets.map(dataset => dataset.id === id ? update(dataset) : dataset) }));
   return <Panel>
     <PanelHeader title="Company onboarding" meta="Local-only staging → mapping → validation → reporting dataset" />
     <PanelBody>
@@ -29,7 +32,17 @@ export function OnboardingPanel() {
         <div className="rounded border border-subtle p-3"><div className="eyebrow">2 Classify & map</div><div className="mt-1 text-primary">{workspace.datasets.filter((dataset) => dataset.inferred.type !== "unknown").length} classified · {workspace.mappings.filter((mapping) => mapping.status === "mapped").length} mapped</div></div>
         <div className="rounded border border-subtle p-3"><div className="eyebrow">3 Validate & activate</div><div className="mt-1 flex items-center gap-2 text-primary"><Badge tone={blocking ? "negative" : "positive"}>{blocking ? `${blocking} blocking` : "Ready"}</Badge>{result.reconciliations.length} reconciliations</div></div>
       </div>
-      {workspace.datasets.length > 0 && <div className="mt-4 space-y-1">{workspace.datasets.map((dataset) => <div key={dataset.id} className="flex items-center justify-between text-[12px] text-secondary"><span>{dataset.sourceSheet} · {dataset.rows.length.toLocaleString()} rows · {dataset.columns.length} columns</span><span><Badge tone={dataset.inferred.type === "unknown" ? "caution" : "neutral"}>{dataset.inferred.type} · {Math.round(dataset.inferred.confidence * 100)}%</Badge></span></div>)}</div>}
+      {workspace.datasets.length > 0 && <div className="mt-4 space-y-3">{workspace.datasets.map((dataset) => {
+        const type = dataset.confirmedType ?? dataset.inferred.type;
+        const source = workspace.sources.find(item => item.id === dataset.sourceFileId);
+        return <div key={dataset.id} className="rounded border border-subtle p-3 text-[12px] text-secondary">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-primary">{source?.filename} · {dataset.sourceSheet} · {dataset.rows.length.toLocaleString()} rows</span><Badge tone={type === "unknown" ? "caution" : "neutral"}>{dataset.inferred.type} · {Math.round(dataset.inferred.confidence * 100)}%</Badge></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2"><label>Confirmed type <select className="ml-1 rounded border border-subtle bg-canvas p-1" value={type} onChange={e => updateDataset(dataset.id, d => ({ ...d, confirmedType: e.target.value as DatasetType }))}>{(["finance_actual","budget","forecast","sales","financial_calendar","gl_mapping","ignored","unknown"] as DatasetType[]).map(option => <option key={option}>{option}</option>)}</select></label><span className="text-tertiary">{dataset.inferred.reasons.join("; ")}</span></div>
+          {(["finance_actual","budget","forecast"] as DatasetType[]).includes(type) && <label className="mt-2 block">Scenario <select className="ml-1 rounded border border-subtle bg-canvas p-1" value={workspace.scenarios.find(s => s.datasetId === dataset.id)?.kind ?? (type === "budget" ? "budget" : "actual")} onChange={e => setWorkspace(current => ({ ...current, scenarios: [...current.scenarios.filter(s => s.datasetId !== dataset.id), { datasetId: dataset.id, scenarioId: e.target.value, kind: e.target.value as "actual" | "budget" | "forecast", label: e.target.value === "budget" ? "Original Budget" : e.target.value === "actual" ? "Actual" : "Forecast", version: e.target.value === "budget" ? "Original Budget" : undefined }] }))}><option value="actual">Actual</option><option value="budget">Budget / Original Budget</option><option value="forecast">Forecast</option></select></label>}
+          {dataset.tableRange && <div className="mt-2 rounded bg-subtle/40 p-2">Source range: header {dataset.tableRange.headerRow}, data rows {dataset.tableRange.startRow}–{dataset.tableRange.endRow}, columns {dataset.tableRange.startColumn ?? 1}–{dataset.tableRange.endColumn ?? dataset.columns.length}. {dataset.tableRange.requiresConfirmation && <><button className="ml-2 rounded border border-subtle px-2 py-1" onClick={() => updateDataset(dataset.id, d => ({ ...d, rangeConfirmed: true }))}>Confirm range</button><span className="ml-2 text-negative">confirmation required</span></>}<div className="mt-1 max-h-20 overflow-auto text-tertiary">Preview: {JSON.stringify(dataset.rows.slice(0, 2))}</div></div>}
+          {type !== "ignored" && dataset.columns.length > 4 && <button className="mt-2 rounded border border-subtle px-2 py-1" onClick={() => updateDataset(dataset.id, d => ({ ...d, wideUnpivot: d.wideUnpivot ? undefined : { identifierColumns: d.columns.slice(0, 2).map(c => c.name), valueColumns: d.columns.slice(2).map(c => c.name), periodFromColumn: true, valueField: "amount" } }))}>{dataset.wideUnpivot ? "Use source rows" : "Treat as wide table / unpivot"}</button>}
+        </div>;
+      })}</div>}
       <div className="mt-4 flex items-center gap-3"><button className="h-8 rounded bg-accent px-3 text-[12px] font-medium text-white disabled:opacity-40" disabled={!canActivate} onClick={() => result.dataset && activateDataset(result.dataset)}>Activate reporting dataset</button><button className="h-8 rounded border border-subtle px-3 text-[12px] text-secondary" onClick={activateDefaultDataset}>Switch to demo dataset</button>{canActivate && <span className="inline-flex items-center gap-1 text-[12px] text-positive"><CheckCircle2 size={14}/> Ready to activate</span>}</div>
     </PanelBody>
   </Panel>;

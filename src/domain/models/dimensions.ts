@@ -9,6 +9,8 @@
  */
 
 export type MappingStatus = "mapped" | "unmapped" | "review" | "excluded";
+export type AccountMappingStatus = "Authoritative" | "Approved Rule" | "Manually Confirmed" | "Needs Review" | "Unmapped";
+export type CanonicalCalculationRole = "grossSales" | "markdowns" | "netSales" | "costOfSales" | "tradingIncomeCost" | "operatingCosts" | "depreciationAmortisation" | "interest" | "tax" | "unconfirmed";
 
 export interface DimensionBase {
   id: string;
@@ -82,6 +84,15 @@ export interface Account extends DimensionBase {
   sign: 1 | -1;
   /** Optional grouping for cost composition analysis. */
   costCategory?: string;
+  /** Client reporting hierarchy, deliberately independent of arithmetic role. */
+  reportingHierarchy?: { p1?: string; p2?: string; p3?: string; pnlSection?: string };
+  calculationRole?: CanonicalCalculationRole;
+  sourceMultiplier?: 1 | -1;
+  mappingSource?: "authoritative_file" | "approved_rule" | "manual" | "unmapped";
+  mappingSourceFile?: string;
+  accountMappingStatus?: AccountMappingStatus;
+  mappingConfidence?: number;
+  authoritative?: boolean;
 }
 
 export interface Entity extends DimensionBase {

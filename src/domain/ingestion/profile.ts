@@ -2,7 +2,7 @@ import type { Classification, ColumnProfile, DatasetType, InferredValueType } fr
 
 const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const keywords: Record<Exclude<DatasetType, "unknown">, string[]> = {
-  finance_actual: ["account", "gl", "debit", "credit", "cost centre", "department", "amount"], budget: ["budget", "plan", "target"], forecast: ["forecast", "estimate", "outlook"], sales: ["order", "product", "sku", "quantity", "revenue", "sales", "store", "customer"], operational_kpi: ["metric", "kpi", "target", "value"], account_master: ["account", "account name"], entity_master: ["entity", "legal entity"], product_master: ["product", "sku"], customer_master: ["customer"], location_master: ["location", "branch", "store"], financial_calendar: ["fiscal year", "fiscal period", "period start", "period end"],
+  finance_actual: ["account", "gl", "debit", "credit", "cost centre", "department", "amount"], budget: ["budget", "plan", "target"], forecast: ["forecast", "estimate", "outlook"], sales: ["order", "product", "sku", "quantity", "revenue", "sales", "store", "customer"], operational_kpi: ["metric", "kpi", "target", "value"], account_master: ["account", "account name"], gl_mapping: ["gl", "p1", "p2", "p3"], entity_master: ["entity", "legal entity"], product_master: ["product", "sku"], customer_master: ["customer"], location_master: ["location", "branch", "store"], financial_calendar: ["fiscal year", "fiscal period", "period start", "period end"], ignored: [],
 };
 
 export function profileColumn(name: string, rows: ReadonlyArray<Record<string, unknown>>): ColumnProfile {

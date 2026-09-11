@@ -20,7 +20,7 @@
 
 import { MockDataAdapter } from "@/data/mock";
 import { setReportingDataset } from "@/domain/data";
-import { buildImportedDataset, classifyDataset, resolveAccountRule, suggestFieldMappings, type ImportWorkspace } from "@/domain/ingestion";
+import { authoritativeRules, buildImportedDataset, classifyDataset, resolveAccountRule, suggestFieldMappings, unpivotWideRows, validateWorkspace, type ImportWorkspace } from "@/domain/ingestion";
 import type { PeriodSelection } from "@/domain/models";
 import {
   selectBalanceSheet, selectCashBridge, selectCashFlow, selectEbitdaBridge,
@@ -246,6 +246,15 @@ expect("mapping rule precedence", resolveAccountRule("41001", "Consulting revenu
 expect("raw to canonical preservation", imported.dataset?.financeRecords[0]?.actual === 125000, "canonical actual does not retain source amount");
 expect("activation blocks incomplete finance mapping", !buildImportedDataset({ ...workspace, mappings: workspace.mappings.filter((mapping) => mapping.canonicalField !== "amount") }).dataset, "missing required finance mapping did not block activation");
 expect("sales fixture classification", classifyDataset(["Order ID", "Customer", "Plan", "Revenue", "Quantity"]).type === "sales", "services-shaped sales columns were not classified as sales");
+const wide = unpivotWideRows([{ GL: "4000", Jan: 10, Feb: 20 }], { identifierColumns: ["GL"], valueColumns: ["Jan", "Feb"], periodFromColumn: true, valueField: "Amount" });
+expect("wide TB unpivot", wide.length === 2 && wide[1].Amount === 20 && wide[1].period === "Feb", "wide balance columns were not retained with period lineage");
+const mappingDataset = { id: "fixture-gl-map", sourceFileId: "mapping-file", columns: [], rows: [{ "GL Code": "41001", "GL Description": "Markdown", "P1 - Section": "Income", "P2 - Header": "Sales", "P3 - Sub-Header": "Markdowns", "P&L Section": "Income", "Sign Convention": "negative" }], inferred: { type: "gl_mapping" as const, confidence: 1, reasons: [] }, status: "staged" as const, warnings: [], errors: [] };
+const authWorkspace = { ...workspace, sources: [{ id: "mapping-file", companyId: importCompany.id, filename: "FF_GL_PL_Mapping.xlsx", fileType: "xlsx" as const, uploadedAt: "2026-01-01" }], datasets: [fixtureDataset, mappingDataset] };
+const auth = authoritativeRules(authWorkspace)[0];
+expect("authoritative GL mapping precedence", auth?.priority === 1_000_000 && resolveAccountRule("41001", "Markdown", [...authoritativeRules(authWorkspace), ...workspace.rules])?.id === auth?.id, "exact workbook mapping did not override generic rules");
+expect("mapping provenance and hierarchy preservation", auth?.mappingSource === "authoritative_file" && auth.reportingHierarchy?.p3 === "Markdowns" && auth.sourceMultiplier === -1, "authoritative mapping lost provenance, P1/P2/P3, or sign treatment");
+const rangeFixture = { ...fixtureDataset, id: "range-fixture", tableRange: { headerRow: 1, startRow: 2, endRow: 2, confidence: .3, requiresConfirmation: true } };
+expect("range confirmation blocks activation", validateWorkspace({ ...workspace, datasets: [rangeFixture] }).some(issue => issue.id === "range-fixture:range"), "unconfirmed source range did not block activation");
 
 // --- Report ---------------------------------------------------------------
 if (failures.length === 0) {
