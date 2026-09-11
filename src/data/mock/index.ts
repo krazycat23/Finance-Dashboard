@@ -1,29 +1,15 @@
 import { companyConfig } from "@/config/company";
 import { monthSeriesEndingAt, parsePeriodId } from "@/domain/calendar";
 import type {
-  FinanceRecord,
-  OperationalRecord,
+  CashFlowRecord,
   Period,
-  SalesRecord,
 } from "@/domain/models";
+import type { ReportingDataAdapter, ReportingDataset } from "@/domain/data";
 import * as dimensions from "./dimensions";
 import { generateFinancials, toFinanceRecords, type FinanceScenarios } from "./finance";
 import { generateOperational } from "./operational";
 import { generateSales, generateWeeklySales } from "./sales";
 import { validateFinancials, validateResidual } from "./validate";
-
-export interface Dataset {
-  periods: Period[];
-  weeks: Period[];
-  financeRecords: FinanceRecord[];
-  salesRecords: SalesRecord[];
-  weeklySalesRecords: SalesRecord[];
-  operationalRecords: OperationalRecord[];
-  scenarios: FinanceScenarios;
-  dimensions: typeof dimensions;
-  /** The last period with actuals. */
-  currentPeriodId: string;
-}
 
 function buildPeriods(): Period[] {
   const { year, month } = parsePeriodId(companyConfig.currentPeriodId);
@@ -32,21 +18,44 @@ function buildPeriods(): Period[] {
   // reporting cut-off. Every chart reads `isActual` rather than guessing,
   // which is what stops future months being drawn as though they happened.
   const endDate = new Date(Date.UTC(year, month - 1 + companyConfig.forecastMonths, 1));
-  return monthSeriesEndingAt(
+  const periods = monthSeriesEndingAt(
     endDate.getUTCFullYear(),
     endDate.getUTCMonth() + 1,
     total,
     companyConfig.currentPeriodId,
   );
+  const byYearAndFiscalPeriod = new Map(periods.map((period) => [`${period.fiscalYear}:${period.fiscalPeriod}`, period.id]));
+  return periods.map((period, index) => ({
+    ...period,
+    previousPeriodId: periods[index - 1]?.id,
+    priorYearPeriodId: byYearAndFiscalPeriod.get(`${priorFiscalYear(period.fiscalYear)}:${period.fiscalPeriod}`),
+    fiscalYearPeriodIds: periods.filter((candidate) => candidate.fiscalYear === period.fiscalYear).map((candidate) => candidate.id),
+    quarterPeriodIds: periods.filter((candidate) => candidate.fiscalYear === period.fiscalYear && Math.floor((candidate.fiscalPeriod - 1) / 3) === Math.floor((period.fiscalPeriod - 1) / 3)).map((candidate) => candidate.id),
+  }));
 }
 
-function buildDataset(): Dataset {
+function priorFiscalYear(fiscalYear: string): string {
+  const year = Number(fiscalYear.replace(/^FY/, ""));
+  return `FY${String((year + 99) % 100).padStart(2, "0")}`;
+}
+
+function buildDataset(): ReportingDataset {
   const periods = buildPeriods();
   const sales = generateSales(periods);
   const { weeks, records: weeklySalesRecords } = generateWeeklySales(periods, sales.monthly);
   const scenarios = generateFinancials(periods, sales);
   const financeRecords = toFinanceRecords(periods, scenarios);
   const operationalRecords = generateOperational(periods, sales.monthly);
+  const scenarioDefinitions = [
+    { id: "actual", kind: "actual", label: "Actual" },
+    { id: "original-budget", kind: "budget", label: "Original Budget", version: "original" },
+    { id: "forecast-current", kind: "forecast", label: "Current Forecast", version: "current", asOfDate: "2026-03-31" },
+  ] as const;
+  const cashFlowRecords: CashFlowRecord[] = [
+    ...scenarios.actual.map((m) => ({ ...toCashFlowRecord(m), scenarioId: "actual" })),
+    ...scenarios.budget.map((m) => ({ ...toCashFlowRecord(m), scenarioId: "original-budget" })),
+    ...scenarios.forecast.map((m) => ({ ...toCashFlowRecord(m), scenarioId: "forecast-current" })),
+  ];
 
   if (import.meta.env.DEV) {
     const issues = [
@@ -68,16 +77,35 @@ function buildDataset(): Dataset {
   }
 
   return {
+    id: "northpoint-demo",
+    source: "demo",
     periods,
     weeks,
     financeRecords,
     salesRecords: sales.monthly,
     weeklySalesRecords,
     operationalRecords,
-    scenarios,
+    scenarios: [...scenarioDefinitions],
+    cashFlowRecords,
     dimensions,
     currentPeriodId: companyConfig.currentPeriodId,
+    defaultEntityId: companyConfig.defaultEntityId,
+    demo: {
+      scenarios,
+      risksAndOpportunities: [
+        { id: "promo", title: "Promotional depth", detail: "Clearance activity running ahead of plan in slower categories.", valueFactor: -0.16, type: "risk", confidence: "High" },
+        { id: "freight", title: "Inbound freight rates", detail: "Contracted rates settle below the rate assumed in the plan.", valueFactor: 0.11, type: "opportunity", confidence: "Medium" },
+        { id: "digital", title: "Digital growth momentum", detail: "Online conversion improvement sustained through the remaining periods.", valueFactor: 0.19, type: "opportunity", confidence: "Medium" },
+        { id: "wages", title: "Award wage increase", detail: "Timing of the wage review lands earlier than planned.", valueFactor: -0.09, type: "risk", confidence: "High" },
+        { id: "supply", title: "Supply continuity", detail: "Key category availability constrained into the final quarter.", valueFactor: -0.07, type: "risk", confidence: "Low" },
+      ],
+    },
   };
+}
+
+function toCashFlowRecord(m: FinanceScenarios["actual"][number]): Omit<CashFlowRecord, "scenarioId"> {
+  const { periodId, entityId, ebitda, cash, operatingCashFlow, investingCashFlow, financingCashFlow, netCashMovement, capex, workingCapitalMovement, interest, tax, dividends } = m;
+  return { periodId, entityId, ebitda, cash, operatingCashFlow, investingCashFlow, financingCashFlow, netCashMovement, capex, workingCapitalMovement, interest, tax, dividends };
 }
 
 /**
@@ -85,6 +113,14 @@ function buildDataset(): Dataset {
  * is replaced by a data adapter (SQL, API, warehouse) returning the same
  * canonical shapes — nothing above this layer would change.
  */
-export const dataset: Dataset = buildDataset();
+export class MockDataAdapter implements ReportingDataAdapter {
+  readonly id = "mock-demo";
+  private dataset?: ReportingDataset;
+
+  load(): ReportingDataset {
+    this.dataset ??= buildDataset();
+    return this.dataset;
+  }
+}
 
 export { dimensions };

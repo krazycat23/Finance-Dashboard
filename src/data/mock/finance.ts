@@ -527,14 +527,22 @@ export function toFinanceRecords(
 
         const actualValue = period.isActual ? valueFor(a) : undefined;
 
+        const actual = actualValue === undefined ? undefined : round(actualValue, 2);
+        const budget = round(valueFor(b) ?? 0, 2);
+        const forecast = round(valueFor(f) ?? 0, 2);
         records.push({
           periodId: period.id,
           entityId: profile.entityId,
           accountId: account.id,
-          actual: actualValue === undefined ? undefined : round(actualValue, 2),
-          budget: round(valueFor(b) ?? 0, 2),
-          forecast: round(valueFor(f) ?? 0, 2),
+          actual,
+          budget,
+          forecast,
           priorYear: py ? round(valueFor(py) ?? 0, 2) : undefined,
+          scenarioValues: [
+            ...(actual === undefined ? [] : [{ scenarioId: "actual", value: actual }]),
+            { scenarioId: "original-budget", value: budget },
+            { scenarioId: "forecast-current", value: forecast },
+          ],
         });
       }
     }

@@ -123,3 +123,38 @@ Commentary generation, anomaly detection, real forecasting models, scenario
 engine, exports, integrations, AI mapping. Seams are left where these attach
 (notably `domain/selectors` and the Data & Mapping page), but nothing is stubbed
 speculatively.
+
+## 7. Phase 1.5 — reporting data boundary (before ingestion)
+
+### Target dependency direction
+
+```
+DataSource / adapter → ReportingDataset → ReportingDataProvider
+                                  ↓              ↓
+                         domain data service   filters / pages
+                                  ↓
+                              selectors
+```
+
+`ReportingDataset` is the single canonical contract consumed by the reporting engine. It owns periods, every reporting dimension, financial, sales, operational and weekly facts, scenario metadata, optional cash-flow facts and the future Data & Mapping result shapes. `MockDataAdapter` builds this contract from the existing seeded generator. It is an adapter selected at application composition time, never the reporting engine's store.
+
+Selectors use the `ReportingDataService` boundary, initialised once by `ReportingDataProvider`; they must never import a concrete adapter. This keeps existing page selector call sites stable while allowing a Phase 2 adapter to replace the active dataset. The verification harness initialises the same service with `MockDataAdapter`, exercising precisely the production boundary.
+
+### Scenario/version foundation
+
+Finance facts move from scenario columns to a row-oriented scenario value contract. A `ScenarioDefinition` has a stable id, kind (`actual`, `budget`, `forecast`, `latestEstimate`, `user`), label, optional version and as-of date. Canonical records retain compatibility value fields while carrying the scenario/value form required for Original Budget, Revised Budget, forecast vintages and user scenarios. Selector defaults resolve named roles through the dataset's scenario catalogue rather than assuming fixed columns.
+
+### Import, currency and mapping foundation
+
+Facts gain optional lineage: source/reporting currency, import id, source row or reference, imported-at timestamp and mapping/configuration version. The dataset also exposes optional mapping statuses, data-quality issues, reconciliation results and import history. The current Data & Mapping page continues to render its demo presentation, but those demo values originate in the mock adapter contract rather than generic selectors.
+
+### Calendar scope
+
+The engine currently operates on monthly primary reporting periods. The configuration is therefore narrowed to `monthly`; weekly periods remain an optional supplementary fact grain for the Sales trend only. `4-4-5` and a weekly primary calendar are not advertised until an adapter supplies explicit period relationship links. Period records now carry calendar relationships (previous / prior-year / fiscal-year / quarter ids) so comparative windows do not use positional `index - 12` assumptions. A future imported custom calendar will populate these relationships directly.
+
+### Incremental verification
+
+1. Introduce domain contracts, adapter interface and provider/service; wrap the existing mock generator in `MockDataAdapter`.
+2. Switch filters, selector modules and Data & Mapping support selectors to the active dataset boundary; remove all `@/data/mock` selector imports.
+3. Replace mock-only scenario-engine dependencies with canonical cash-flow and scenario facts; move retail narrative assumptions into mock demo metadata.
+4. Make verification discover representative entities and the reporting cut-off from the active dataset, then run typecheck, build and verify after each major step.

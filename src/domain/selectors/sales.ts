@@ -1,4 +1,4 @@
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import type { Period, PeriodSelection, SalesRecord } from "@/domain/models";
 import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
 
@@ -10,7 +10,7 @@ import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
  * "by product" or "by region" without knowing what any of them are.
  */
 
-const { salesRecords, weeklySalesRecords, dimensions } = dataset;
+const dataset = getReportingDataset;
 
 export type SalesDimension = "channelId" | "productId" | "locationId" | "entityId";
 
@@ -81,7 +81,7 @@ function filterRecords(
  * build a sparkline period by period without re-deriving the window.
  */
 export function salesTotalsFor(periodIds: string[], entityIds: string[]): SalesTotals {
-  return totalise(filterRecords(salesRecords, new Set(periodIds), new Set(entityIds)));
+  return totalise(filterRecords(dataset().salesRecords, new Set(periodIds), new Set(entityIds)));
 }
 
 export function selectSalesTotals(selection: PeriodSelection): SalesTotals {
@@ -91,7 +91,7 @@ export function selectSalesTotals(selection: PeriodSelection): SalesTotals {
       .filter((p) => p.isActual)
       .map((p) => p.id),
   );
-  return totalise(filterRecords(salesRecords, periodIds, entityIds));
+  return totalise(filterRecords(dataset().salesRecords, periodIds, entityIds));
 }
 
 export function selectPriorYearSalesTotals(selection: PeriodSelection): SalesTotals {
@@ -101,7 +101,7 @@ export function selectPriorYearSalesTotals(selection: PeriodSelection): SalesTot
       .filter((p) => p.isActual)
       .map((p) => p.id),
   );
-  return totalise(filterRecords(salesRecords, periodIds, entityIds));
+  return totalise(filterRecords(dataset().salesRecords, periodIds, entityIds));
 }
 
 export interface DimensionBreakdown {
@@ -118,12 +118,15 @@ export interface DimensionBreakdown {
   marginPoints?: number;
 }
 
-const NAME_LOOKUP: Record<SalesDimension, Map<string, string>> = {
-  channelId: new Map(dimensions.channels.map((c) => [c.id, c.name])),
-  productId: new Map(dimensions.products.map((p) => [p.id, p.name])),
-  locationId: new Map(dimensions.locations.map((l) => [l.id, l.name])),
-  entityId: new Map(dimensions.entities.map((e) => [e.id, e.name])),
-};
+function nameLookup(): Record<SalesDimension, Map<string, string>> {
+  const dimensions = dataset().dimensions;
+  return {
+    channelId: new Map(dimensions.channels.map((c) => [c.id, c.name])),
+    productId: new Map(dimensions.products.map((p) => [p.id, p.name])),
+    locationId: new Map(dimensions.locations.map((l) => [l.id, l.name])),
+    entityId: new Map(dimensions.entities.map((e) => [e.id, e.name])),
+  };
+}
 
 export function selectBreakdown(
   selection: PeriodSelection,
@@ -135,7 +138,7 @@ export function selectBreakdown(
       .filter((p) => p.isActual)
       .map((p) => p.id),
   );
-  const records = filterRecords(salesRecords, periodIds, entityIds);
+  const records = filterRecords(dataset().salesRecords, periodIds, entityIds);
 
   const grouped = new Map<string, SalesRecord[]>();
   for (const r of records) {
@@ -155,7 +158,7 @@ export function selectBreakdown(
     const priorMargin = t.priorYearRevenue > 0 ? t.grossMargin : undefined;
     rows.push({
       id,
-      name: NAME_LOOKUP[dimension].get(id) ?? id,
+      name: nameLookup()[dimension].get(id) ?? id,
       revenue: t.revenue,
       grossProfit: t.grossProfit,
       grossMargin: t.grossMargin,
@@ -188,14 +191,14 @@ export function selectWeeklySales(
 
   // Weeks belong to a month via their id prefix; take every week up to and
   // including the reporting month, then the most recent `weekCount` of them.
-  const eligible = dataset.weeks.filter(
+  const eligible = dataset().weeks.filter(
     (w) => w.id.slice(0, 7) <= anchorMonth && w.isActual,
   );
   const window = eligible.slice(-weekCount);
   const windowIds = new Set(window.map((w) => w.id));
 
   const byWeek = new Map<string, { revenue: number; priorYear: number; budget: number }>();
-  for (const r of weeklySalesRecords) {
+  for (const r of dataset().weeklySalesRecords) {
     if (!windowIds.has(r.periodId) || !entityIds.has(r.entityId)) continue;
     const agg = byWeek.get(r.periodId) ?? { revenue: 0, priorYear: 0, budget: 0 };
     agg.revenue += r.revenue;
@@ -228,7 +231,7 @@ export function selectMonthlyByDimension(
 
   return members.map((member) => {
     const monthCells = months.map((period) => {
-      const rows = salesRecords.filter(
+      const rows = dataset().salesRecords.filter(
         (r) =>
           r.periodId === period.id &&
           entityIds.has(r.entityId) &&
@@ -265,7 +268,7 @@ export function selectPriorYearBreakdown(
       .filter((p) => p.isActual)
       .map((p) => p.id),
   );
-  const records = filterRecords(salesRecords, periodIds, entityIds);
+  const records = filterRecords(dataset().salesRecords, periodIds, entityIds);
 
   const grouped = new Map<string, PriorBreakdown>();
   for (const r of records) {

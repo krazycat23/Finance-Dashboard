@@ -1,7 +1,6 @@
-import { dataset } from "@/data/mock";
-import type { FinancialMonth } from "@/data/mock/finance";
-import type { Period, PeriodSelection } from "@/domain/models";
-import { periodsForBasis, resolveEntityIds } from "./core";
+import { getReportingDataset } from "@/domain/data";
+import type { Period, PeriodSelection, Scenario, StatementLine } from "@/domain/models";
+import { aggregateLines, periodsForBasis, resolveEntityIds } from "./core";
 
 /**
  * FORECAST SELECTION
@@ -23,61 +22,30 @@ export interface ForecastPoint {
   isActual: boolean;
 }
 
-function monthIndex(scenario: FinancialMonth[]) {
-  const map = new Map<string, FinancialMonth[]>();
-  for (const m of scenario) {
-    const list = map.get(m.periodId);
-    if (list) list.push(m);
-    else map.set(m.periodId, [m]);
-  }
-  return map;
-}
+const MEASURES = ["revenue", "grossProfit", "ebitda", "netProfit", "operatingCosts"] as const;
+type ForecastMeasure = typeof MEASURES[number];
 
-const ACTUAL = monthIndex(dataset.scenarios.actual);
-const BUDGET = monthIndex(dataset.scenarios.budget);
-const FORECAST = monthIndex(dataset.scenarios.forecast);
-
-type Measure = (m: FinancialMonth) => number;
-
-const MEASURES: Record<string, Measure> = {
-  revenue: (m) => m.revenue,
-  grossProfit: (m) => m.grossProfit,
-  ebitda: (m) => m.ebitda,
-  netProfit: (m) => m.netProfit,
-  operatingCosts: (m) => m.operatingCosts,
-};
-
-function total(
-  index: Map<string, FinancialMonth[]>,
-  periodId: string,
-  entityIds: Set<string>,
-  measure: Measure,
-): number {
-  const months = index.get(periodId) ?? [];
-  return months.reduce((s, m) => (entityIds.has(m.entityId) ? s + measure(m) : s), 0);
+function total(periodId: string, entityIds: Set<string>, measure: ForecastMeasure, scenario: Scenario): number {
+  return aggregateLines([periodId], [...entityIds], scenario)[measure as StatementLine] ?? 0;
 }
 
 /** Full fiscal-year series for the year containing the selected period. */
 export function selectForecastSeries(
   selection: PeriodSelection,
-  metricId: keyof typeof MEASURES = "revenue",
+  metricId: ForecastMeasure = "revenue",
 ): ForecastPoint[] {
   const entityIds = new Set(resolveEntityIds(selection.entityId));
-  const measure = MEASURES[metricId];
   const periods = periodsForBasis("FY", selection.periodId);
 
   return periods.map((period) => {
-    const priorId = (() => {
-      const [year, month] = period.id.split("-").map(Number);
-      return `${year - 1}-${String(month).padStart(2, "0")}`;
-    })();
+    const priorId = period.priorYearPeriodId;
 
     return {
       period,
-      actual: period.isActual ? total(ACTUAL, period.id, entityIds, measure) : undefined,
-      forecast: total(FORECAST, period.id, entityIds, measure),
-      budget: total(BUDGET, period.id, entityIds, measure),
-      priorYear: total(ACTUAL, priorId, entityIds, measure),
+      actual: period.isActual ? total(period.id, entityIds, metricId, "actual") : undefined,
+      forecast: total(period.id, entityIds, metricId, "forecast"),
+      budget: total(period.id, entityIds, metricId, "budget"),
+      priorYear: priorId ? total(priorId, entityIds, metricId, "actual") : undefined,
       isActual: period.isActual,
     };
   });
@@ -104,10 +72,9 @@ export interface FullYearOutlook {
  */
 export function selectFullYearOutlook(
   selection: PeriodSelection,
-  metricId: keyof typeof MEASURES = "ebitda",
+  metricId: ForecastMeasure = "ebitda",
 ): FullYearOutlook {
   const entityIds = new Set(resolveEntityIds(selection.entityId));
-  const measure = MEASURES[metricId];
   const periods = periodsForBasis("FY", selection.periodId);
 
   let actualToDate = 0;
@@ -117,17 +84,13 @@ export function selectFullYearOutlook(
   let remainingPeriods = 0;
 
   for (const period of periods) {
-    budgetTotal += total(BUDGET, period.id, entityIds, measure);
-    const priorId = (() => {
-      const [year, month] = period.id.split("-").map(Number);
-      return `${year - 1}-${String(month).padStart(2, "0")}`;
-    })();
-    priorYearTotal += total(ACTUAL, priorId, entityIds, measure);
+    budgetTotal += total(period.id, entityIds, metricId, "budget");
+    if (period.priorYearPeriodId) priorYearTotal += total(period.priorYearPeriodId, entityIds, metricId, "actual");
 
     if (period.isActual) {
-      actualToDate += total(ACTUAL, period.id, entityIds, measure);
+      actualToDate += total(period.id, entityIds, metricId, "actual");
     } else {
-      forecastRemaining += total(FORECAST, period.id, entityIds, measure);
+      forecastRemaining += total(period.id, entityIds, metricId, "forecast");
       remainingPeriods += 1;
     }
   }
@@ -271,8 +234,8 @@ export function selectForecastAccuracy(selection: PeriodSelection): number {
 
   const errors: number[] = [];
   for (const period of periods) {
-    const actual = total(ACTUAL, period.id, entityIds, MEASURES.revenue);
-    const forecast = total(FORECAST, period.id, entityIds, MEASURES.revenue);
+    const actual = total(period.id, entityIds, "revenue", "actual");
+    const forecast = total(period.id, entityIds, "revenue", "forecast");
     if (actual > 0) errors.push(Math.abs(actual - forecast) / actual);
   }
   if (errors.length === 0) return 0;
@@ -291,47 +254,9 @@ export interface RiskOpportunity {
 export function selectRisksAndOpportunities(selection: PeriodSelection): RiskOpportunity[] {
   const outlook = selectFullYearOutlook(selection, "ebitda");
   const scale = Math.abs(outlook.forecastRemaining) || Math.abs(outlook.forecast) * 0.1;
-
-  return [
-    {
-      id: "promo",
-      title: "Promotional depth",
-      detail: "Clearance activity running ahead of plan in slower categories.",
-      value: -scale * 0.16,
-      type: "risk",
-      confidence: "High",
-    },
-    {
-      id: "freight",
-      title: "Inbound freight rates",
-      detail: "Contracted rates settle below the rate assumed in the plan.",
-      value: scale * 0.11,
-      type: "opportunity",
-      confidence: "Medium",
-    },
-    {
-      id: "digital",
-      title: "Digital growth momentum",
-      detail: "Online conversion improvement sustained through the remaining periods.",
-      value: scale * 0.19,
-      type: "opportunity",
-      confidence: "Medium",
-    },
-    {
-      id: "wages",
-      title: "Award wage increase",
-      detail: "Timing of the wage review lands earlier than planned.",
-      value: -scale * 0.09,
-      type: "risk",
-      confidence: "High",
-    },
-    {
-      id: "supply",
-      title: "Supply continuity",
-      detail: "Key category availability constrained into the final quarter.",
-      value: -scale * 0.07,
-      type: "risk",
-      confidence: "Low",
-    },
-  ];
+  const inputs = getReportingDataset().demo?.risksAndOpportunities ?? [];
+  return inputs.map((input) => {
+    const item = input as Omit<RiskOpportunity, "value"> & { valueFactor: number };
+    return { ...item, value: scale * item.valueFactor };
+  });
 }

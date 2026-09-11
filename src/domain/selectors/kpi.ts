@@ -2,7 +2,7 @@ import { getMetric } from "@/domain/metrics";
 import { calculateVariance, type Variance } from "@/domain/metrics/variance";
 import type { MetricDefinition } from "@/domain/metrics/types";
 import type { Period, PeriodSelection } from "@/domain/models";
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import { cashFlowTotalsFor, type CashFlowTotals } from "./cashflow";
 import { salesTotalsFor, type SalesTotals } from "./sales";
 import {
@@ -121,11 +121,8 @@ function resolveSales(metricId: string, totals: SalesTotals): number | undefined
   return SALES_RESOLVERS[metricId]?.(totals);
 }
 
-const ENTITY_NAMES = new Map(
-  dataset.dimensions.entities.map((e) => [e.id, e.name]),
-);
 function entityName(id: string): string {
-  return ENTITY_NAMES.get(id) ?? id;
+  return getReportingDataset().dimensions.entities.find((entity) => entity.id === id)?.name ?? id;
 }
 
 const BASIS_LABEL: Record<string, string> = {

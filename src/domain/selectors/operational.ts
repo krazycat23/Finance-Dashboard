@@ -1,4 +1,4 @@
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import { tryGetMetric } from "@/domain/metrics";
 import type { MetricDefinition } from "@/domain/metrics/types";
 import type { OperationalRecord, Period, PeriodSelection } from "@/domain/models";
@@ -17,13 +17,11 @@ import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
  * registry entries, not new components.
  */
 
-const { operationalRecords, dimensions } = dataset;
-
-const LOCATION_NAMES = new Map(dimensions.locations.map((l) => [l.id, l.name]));
+const dataset = getReportingDataset;
 
 /** Metric ids actually present in the data, in registry order. */
 export function availableOperationalMetrics(): MetricDefinition[] {
-  const ids = new Set(operationalRecords.map((record) => record.metricId));
+  const ids = new Set(dataset().operationalRecords.map((record) => record.metricId));
   return [...ids]
     .map((id) => tryGetMetric(id))
     .filter((metric): metric is MetricDefinition => metric !== undefined);
@@ -47,7 +45,7 @@ function filterRecords(
   entityIds: Set<string>,
   locationId?: string,
 ): OperationalRecord[] {
-  return operationalRecords.filter(
+  return dataset().operationalRecords.filter(
     (record) =>
       record.metricId === metricId &&
       periodIds.has(record.periodId) &&
@@ -135,7 +133,7 @@ export function selectOperationalByLocation(
   );
 
   const locationIds = new Set(
-    operationalRecords
+    dataset().operationalRecords
       .filter((r) => r.metricId === metricId && r.locationId)
       .map((r) => r.locationId!),
   );
@@ -148,7 +146,7 @@ export function selectOperationalByLocation(
       const targets = current.filter((r) => r.target !== undefined);
       return {
         locationId,
-        locationName: LOCATION_NAMES.get(locationId) ?? locationId,
+        locationName: dataset().dimensions.locations.find((location) => location.id === locationId)?.name ?? locationId,
         value: aggregate(current, metric),
         priorYear: prior.length > 0 ? aggregate(prior, metric) : undefined,
         target:

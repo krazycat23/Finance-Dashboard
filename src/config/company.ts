@@ -23,8 +23,8 @@ export interface CompanyConfig {
   fiscalYearStartMonth: number;
   /** How fiscal years are labelled, e.g. FY25 for the year ending June 2025. */
   fiscalYearLabel: "startYear" | "endYear";
-  /** Weekly retail calendars are common; monthly is the default. */
-  periodicity: "monthly" | "weekly" | "4-4-5";
+  /** Primary reporting calendar currently supported by the calculation engine. */
+  periodicity: "monthly";
 
   defaultEntityId: string;
   defaultTheme: "light" | "dark";

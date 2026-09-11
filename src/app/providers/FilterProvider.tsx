@@ -1,9 +1,8 @@
 import {
   createContext, useContext, useMemo, useState, type ReactNode,
 } from "react";
-import { companyConfig } from "@/config/company";
-import { dataset } from "@/data/mock";
 import type { Period, PeriodBasis, PeriodSelection } from "@/domain/models";
+import { useReportingDataset } from "./ReportingDataProvider";
 
 interface FilterContextValue extends PeriodSelection {
   setEntityId: (entityId: string) => void;
@@ -24,9 +23,10 @@ const FilterContext = createContext<FilterContextValue | null>(null);
  * page cannot quietly report a different period from its neighbours.
  */
 export function FilterProvider({ children }: { children: ReactNode }) {
-  const [entityId, setEntityId] = useState(companyConfig.defaultEntityId);
+  const dataset = useReportingDataset();
+  const [entityId, setEntityId] = useState(dataset.defaultEntityId);
   const [basis, setBasis] = useState<PeriodBasis>("YTD");
-  const [periodId, setPeriodId] = useState(companyConfig.currentPeriodId);
+  const [periodId, setPeriodId] = useState(dataset.currentPeriodId);
 
   // Only closed periods are selectable. Offering an open period as a reporting
   // date invites a screen full of zeroes.

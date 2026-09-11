@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useFilters } from "@/app/providers/FilterProvider";
-import { dataset } from "@/data/mock";
 import type { PeriodBasis } from "@/domain/models";
 import { Select } from "@/components/ui/Select";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 
 /**
  * GLOBAL FILTERS
@@ -23,6 +23,7 @@ const BASIS_OPTIONS: { value: PeriodBasis; label: string }[] = [
 ];
 
 export function GlobalFilters() {
+  const dataset = useReportingDataset();
   const {
     entityId, setEntityId, basis, setBasis, periodId, setPeriodId, availablePeriods,
   } = useFilters();

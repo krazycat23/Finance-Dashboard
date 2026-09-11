@@ -1,5 +1,4 @@
-import { companyConfig } from "@/config/company";
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import type {
   Period,
   PeriodBasis,
@@ -22,28 +21,25 @@ import type {
  * distorting a subtotal.
  */
 
-const { periods, financeRecords, dimensions } = dataset;
-
-const periodById = new Map(periods.map((p) => [p.id, p]));
-const accountById = new Map(dimensions.accounts.map((a) => [a.id, a]));
+const dataset = getReportingDataset;
 
 /** Entity plus all descendants — "Group" is the sum of its children. */
 export function resolveEntityIds(entityId: string): string[] {
-  const children = dimensions.entities.filter((e) => e.parentId === entityId);
+  const children = dataset().dimensions.entities.filter((e) => e.parentId === entityId);
   if (children.length === 0) return [entityId];
   return children.flatMap((child) => resolveEntityIds(child.id));
 }
 
 export function getPeriod(periodId: string): Period | undefined {
-  return periodById.get(periodId);
+  return dataset().periods.find((period) => period.id === periodId);
 }
 
 export function actualPeriods(): Period[] {
-  return periods.filter((p) => p.isActual);
+  return dataset().periods.filter((p) => p.isActual);
 }
 
 export function currentPeriod(): Period {
-  const period = periodById.get(companyConfig.currentPeriodId);
+  const period = getPeriod(dataset().currentPeriodId);
   if (!period) throw new Error("Configured current period is not in the dataset.");
   return period;
 }
@@ -54,13 +50,22 @@ export function currentPeriod(): Period {
  * caller explicitly asks for forward periods elsewhere.
  */
 export function periodsForBasis(basis: PeriodBasis, periodId: string): Period[] {
-  const anchor = periodById.get(periodId);
+  const periods = dataset().periods;
+  const anchor = periods.find((period) => period.id === periodId);
   if (!anchor) return [];
+  const throughAnchor = (ids: string[]) => {
+    const members = periods.filter((period) => ids.includes(period.id));
+    const anchorIndex = members.findIndex((period) => period.id === anchor.id);
+    return anchorIndex >= 0 ? members.slice(0, anchorIndex + 1) : members;
+  };
 
   switch (basis) {
     case "MTD":
       return [anchor];
     case "QTD": {
+      if (anchor.quarterPeriodIds) {
+        return throughAnchor(anchor.quarterPeriodIds);
+      }
       const quarterStart = Math.floor((anchor.fiscalPeriod - 1) / 3) * 3 + 1;
       return periods.filter(
         (p) =>
@@ -70,10 +75,17 @@ export function periodsForBasis(basis: PeriodBasis, periodId: string): Period[] 
       );
     }
     case "YTD":
+      if (anchor.fiscalYearPeriodIds) {
+        return throughAnchor(anchor.fiscalYearPeriodIds);
+      }
       return periods.filter(
         (p) => p.fiscalYear === anchor.fiscalYear && p.fiscalPeriod <= anchor.fiscalPeriod,
       );
     case "FY":
+      if (anchor.fiscalYearPeriodIds) {
+        const ids = new Set(anchor.fiscalYearPeriodIds);
+        return periods.filter((period) => ids.has(period.id));
+      }
       return periods.filter((p) => p.fiscalYear === anchor.fiscalYear);
     case "R12": {
       const index = periods.findIndex((p) => p.id === anchor.id);
@@ -84,10 +96,12 @@ export function periodsForBasis(basis: PeriodBasis, periodId: string): Period[] 
 
 /** The equivalent basis window one fiscal year earlier. */
 export function priorYearPeriods(basis: PeriodBasis, periodId: string): Period[] {
-  const anchor = periodById.get(periodId);
+  const periods = dataset().periods;
+  const anchor = periods.find((period) => period.id === periodId);
   if (!anchor) return [];
-  const index = periods.findIndex((p) => p.id === anchor.id);
-  const priorAnchor = periods[index - 12];
+  const priorAnchor = anchor.priorYearPeriodId
+    ? periods.find((period) => period.id === anchor.priorYearPeriodId)
+    : undefined;
   return priorAnchor ? periodsForBasis(basis, priorAnchor.id) : [];
 }
 
@@ -115,7 +129,9 @@ export function aggregateLines(
   const entitySet = new Set(entityIds);
   const totals: LineTotals = {};
 
-  for (const record of financeRecords) {
+  const data = dataset();
+  const accountById = new Map(data.dimensions.accounts.map((account) => [account.id, account]));
+  for (const record of data.financeRecords) {
     if (!periodSet.has(record.periodId)) continue;
     if (!entitySet.has(record.entityId)) continue;
 
@@ -125,7 +141,10 @@ export function aggregateLines(
       continue;
     }
 
-    const value = record[scenario];
+    const scenarioDefinition = data.scenarios.find((definition) => definition.kind === scenario);
+    const value = scenarioDefinition
+      ? record.scenarioValues?.find((item) => item.scenarioId === scenarioDefinition.id)?.value ?? record[scenario]
+      : record[scenario];
     if (value === undefined) continue;
 
     totals[account.line] = (totals[account.line] ?? 0) + value;
@@ -230,4 +249,5 @@ export function selectComparableBudget(selection: PeriodSelection): LineTotals {
   return aggregateLines(actualIds, entityIds, "budget");
 }
 
-export { periods as allPeriods, dimensions };
+export function allPeriods(): Period[] { return dataset().periods; }
+export function reportingDimensions() { return dataset().dimensions; }

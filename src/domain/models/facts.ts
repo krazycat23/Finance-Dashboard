@@ -18,6 +18,34 @@ export interface FinanceRecord {
   budget?: number;
   forecast?: number;
   priorYear?: number;
+  /** Row-oriented values support multiple budgets and forecast vintages. */
+  scenarioValues?: ScenarioValue[];
+  lineage?: RecordLineage;
+}
+
+export interface RecordLineage {
+  sourceCurrency?: string;
+  reportingCurrency?: string;
+  sourceImportId?: string;
+  sourceReference?: string;
+  sourceRow?: number;
+  importedAt?: string;
+  mappingVersion?: string;
+}
+
+export type ScenarioKind = "actual" | "budget" | "forecast" | "latestEstimate" | "user";
+
+export interface ScenarioDefinition {
+  id: string;
+  kind: ScenarioKind;
+  label: string;
+  version?: string;
+  asOfDate?: string;
+}
+
+export interface ScenarioValue {
+  scenarioId: string;
+  value: number;
 }
 
 export interface SalesRecord {
@@ -49,6 +77,26 @@ export interface OperationalRecord {
   value: number;
   target?: number;
   priorYear?: number;
+  lineage?: RecordLineage;
+}
+
+/** Canonical cash-flow detail, optionally supplied by an adapter. */
+export interface CashFlowRecord {
+  periodId: string;
+  entityId: string;
+  scenarioId: string;
+  ebitda: number;
+  cash: number;
+  operatingCashFlow: number;
+  investingCashFlow: number;
+  financingCashFlow: number;
+  netCashMovement: number;
+  capex: number;
+  workingCapitalMovement: number;
+  interest: number;
+  tax: number;
+  dividends: number;
+  lineage?: RecordLineage;
 }
 
 export type Scenario = "actual" | "budget" | "forecast" | "priorYear";

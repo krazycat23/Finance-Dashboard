@@ -1,6 +1,5 @@
-import { dataset } from "@/data/mock";
-import type { FinancialMonth } from "@/data/mock/finance";
-import type { Period, PeriodSelection, StatementRow } from "@/domain/models";
+import { getReportingDataset } from "@/domain/data";
+import type { CashFlowRecord, Period, PeriodSelection, StatementRow } from "@/domain/models";
 import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
 
 /**
@@ -12,13 +11,18 @@ import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
  * prints, by construction rather than by coincidence.
  */
 
-const SCENARIOS = {
-  actual: dataset.scenarios.actual,
-  budget: dataset.scenarios.budget,
-  forecast: dataset.scenarios.forecast,
-} as const;
+export type CashScenario = "actual" | "budget" | "forecast";
 
-export type CashScenario = keyof typeof SCENARIOS;
+function scenarioId(scenario: CashScenario): string {
+  const definition = getReportingDataset().scenarios.find((item) => item.kind === scenario);
+  if (!definition) throw new Error(`Dataset does not provide a ${scenario} scenario.`);
+  return definition.id;
+}
+
+function scenarioRecords(scenario: CashScenario): CashFlowRecord[] {
+  const id = scenarioId(scenario);
+  return getReportingDataset().cashFlowRecords.filter((record) => record.scenarioId === id);
+}
 
 export interface CashFlowTotals {
   ebitda: number;
@@ -36,8 +40,8 @@ export interface CashFlowTotals {
   freeCashFlow: number;
 }
 
-function sum(months: FinancialMonth[]): CashFlowTotals {
-  const total = (get: (m: FinancialMonth) => number) =>
+function sum(months: CashFlowRecord[]): CashFlowTotals {
+  const total = (get: (m: CashFlowRecord) => number) =>
     months.reduce((s, m) => s + get(m), 0);
 
   const operatingCashFlow = total((m) => m.operatingCashFlow);
@@ -66,10 +70,10 @@ function monthsFor(
   scenario: CashScenario,
   periods: Period[],
   entityIds: string[],
-): FinancialMonth[] {
+): CashFlowRecord[] {
   const periodSet = new Set(periods.map((p) => p.id));
   const entitySet = new Set(entityIds);
-  return SCENARIOS[scenario].filter(
+  return scenarioRecords(scenario).filter(
     (m) => periodSet.has(m.periodId) && entitySet.has(m.entityId),
   );
 }
@@ -77,7 +81,7 @@ function monthsFor(
 /** Closing cash across a set of entities at one period. */
 function cashAt(periodId: string, entityIds: string[], scenario: CashScenario): number {
   const entitySet = new Set(entityIds);
-  return SCENARIOS[scenario]
+  return scenarioRecords(scenario)
     .filter((m) => m.periodId === periodId && entitySet.has(m.entityId))
     .reduce((s, m) => s + m.cash, 0);
 }
@@ -95,7 +99,7 @@ export function cashFlowTotalsFor(
   const periodSet = new Set(periodIds);
   const entitySet = new Set(entityIds);
   return sum(
-    SCENARIOS[scenario].filter(
+    scenarioRecords(scenario).filter(
       (m) => periodSet.has(m.periodId) && entitySet.has(m.entityId),
     ),
   );
@@ -116,7 +120,7 @@ export function selectCashFlow(
   const totals = sum(monthsFor(scenario, window, entityIds));
 
   // Opening cash is the closing balance of the period BEFORE the window.
-  const allPeriods = dataset.periods;
+  const allPeriods = getReportingDataset().periods;
   const firstIndex = allPeriods.findIndex((p) => p.id === window[0].id);
   const openingPeriod = allPeriods[firstIndex - 1];
 

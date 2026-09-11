@@ -25,6 +25,11 @@ export interface Period {
    * actuals for these — a forecast is drawn distinctly instead.
    */
   isActual: boolean;
+  /** Explicit calendar links supplied by the active data source. */
+  previousPeriodId?: string;
+  priorYearPeriodId?: string;
+  fiscalYearPeriodIds?: string[];
+  quarterPeriodIds?: string[];
 }
 
 /** How a page compares the selected period. */

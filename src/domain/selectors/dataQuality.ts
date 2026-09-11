@@ -1,6 +1,5 @@
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import { companyConfig } from "@/config/company";
-import { createRandom } from "@/data/mock/random";
 import type { MappingStatus } from "@/domain/models";
 
 /**
@@ -73,7 +72,12 @@ export interface DataHealth {
   lastRefresh: string;
 }
 
-const rng = createRandom(24680);
+const dataset = getReportingDataset;
+function createDemoRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => ((state = (state * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+const rng = createDemoRandom(24680);
 
 function countByStatus(items: { mappingStatus?: MappingStatus }[]) {
   let mapped = 0, unmapped = 0, review = 0;
@@ -105,7 +109,7 @@ const SYNTHETIC_UNMAPPED = {
 };
 
 export function selectMappingSummary(): MappingSummary[] {
-  const { accounts, products, channels, locations, entities, costCentres } = dataset.dimensions;
+  const { accounts, products, channels, locations, entities, costCentres } = dataset().dimensions;
 
   const rows: MappingSummary[] = [
     {

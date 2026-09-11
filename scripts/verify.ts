@@ -18,8 +18,8 @@
  * When this engine is pointed at a new company, this is the acceptance test.
  */
 
-import { companyConfig } from "@/config/company";
-import { dataset } from "@/data/mock";
+import { MockDataAdapter } from "@/data/mock";
+import { setReportingDataset } from "@/domain/data";
 import type { PeriodSelection } from "@/domain/models";
 import {
   selectBalanceSheet, selectCashBridge, selectCashFlow, selectEbitdaBridge,
@@ -27,6 +27,9 @@ import {
   selectPriceVolumeMix, selectProfitAndLoss, selectSalesTotals,
   selectWorkingCapitalDays, periodsForBasis,
 } from "@/domain/selectors";
+
+const dataset = new MockDataAdapter().load();
+setReportingDataset(dataset);
 
 interface Failure {
   check: string;
@@ -46,12 +49,14 @@ const TOLERANCE = 1;
 const close = (a: number, b: number, tolerance = TOLERANCE) =>
   Math.abs(a - b) <= tolerance;
 
-const SELECTIONS: PeriodSelection[] = [
-  { entityId: "group", basis: "YTD", periodId: companyConfig.currentPeriodId },
-  { entityId: "group", basis: "R12", periodId: companyConfig.currentPeriodId },
-  { entityId: "retail-au", basis: "YTD", periodId: companyConfig.currentPeriodId },
-  { entityId: "digital", basis: "MTD", periodId: companyConfig.currentPeriodId },
-];
+const leafEntities = dataset.dimensions.entities.filter((entity) =>
+  !dataset.dimensions.entities.some((candidate) => candidate.parentId === entity.id),
+);
+const verificationEntities = [dataset.defaultEntityId, ...leafEntities.slice(0, 2).map((entity) => entity.id)];
+const SELECTIONS: PeriodSelection[] = verificationEntities.flatMap((entityId, index) => [
+  { entityId, basis: index === 1 ? "MTD" : "YTD", periodId: dataset.currentPeriodId },
+  ...(index === 0 ? [{ entityId, basis: "R12" as const, periodId: dataset.currentPeriodId }] : []),
+]);
 
 for (const selection of SELECTIONS) {
   const tag = `${selection.entityId}/${selection.basis}`;
@@ -188,8 +193,8 @@ for (const selection of SELECTIONS) {
 }
 
 // --- No chart may plot an actual for a period that has not closed ----------
-const forwardPeriods = periodsForBasis("FY", companyConfig.currentPeriodId);
-const series = selectMetricSeries("revenue", forwardPeriods, "group");
+const forwardPeriods = periodsForBasis("FY", dataset.currentPeriodId);
+const series = selectMetricSeries("revenue", forwardPeriods, dataset.defaultEntityId);
 const leaked = series.filter((point) => !point.period.isActual && point.actual !== undefined);
 expect(
   "no actuals in open periods",
@@ -199,7 +204,7 @@ expect(
 
 // Every period marked actual must be at or before the reporting cut-off.
 const misdated = dataset.periods.filter(
-  (period) => period.isActual && period.id > companyConfig.currentPeriodId,
+  (period) => period.isActual && period.id > dataset.currentPeriodId,
 );
 expect(
   "reporting cut-off respected",

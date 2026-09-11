@@ -2,6 +2,10 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { FilterProvider } from "./providers/FilterProvider";
+import { ReportingDataProvider } from "./providers/ReportingDataProvider";
+import { MockDataAdapter } from "@/data/mock";
+
+const reportingAdapter = new MockDataAdapter();
 
 import { OverviewPage } from "@/pages/overview/OverviewPage";
 import { SalesPage } from "@/pages/sales/SalesPage";
@@ -22,6 +26,7 @@ import { SettingsPage } from "@/pages/settings/SettingsPage";
 export function App() {
   return (
     <ThemeProvider>
+      <ReportingDataProvider adapter={reportingAdapter}>
       <FilterProvider>
         <BrowserRouter>
           <Routes>
@@ -42,6 +47,7 @@ export function App() {
           </Routes>
         </BrowserRouter>
       </FilterProvider>
+      </ReportingDataProvider>
     </ThemeProvider>
   );
 }

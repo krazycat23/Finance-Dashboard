@@ -1,13 +1,11 @@
-import { dataset } from "@/data/mock";
+import { getReportingDataset } from "@/domain/data";
 import type { PeriodSelection, StatementLine, StatementRow } from "@/domain/models";
 import {
   aggregateLines, periodsForBasis, priorYearPeriods, resolveEntityIds,
   selectComparableBudget, selectLines, type LineTotals,
 } from "./core";
 
-const accountIndex = new Map(
-  dataset.dimensions.accounts.map((account) => [account.id, account]),
-);
+const dataset = getReportingDataset;
 
 /**
  * STATEMENT CONSTRUCTION
@@ -172,7 +170,8 @@ export function selectCostComposition(selection: PeriodSelection): CostCategoryT
     const periodSet = new Set(periodIds);
     const entitySet = new Set(entityIds);
     const byCategory = new Map<string, number>();
-    for (const record of dataset.financeRecords) {
+    const accountIndex = new Map(dataset().dimensions.accounts.map((account) => [account.id, account]));
+    for (const record of dataset().financeRecords) {
       if (!periodSet.has(record.periodId) || !entitySet.has(record.entityId)) continue;
       const account = accountIndex.get(record.accountId);
       if (!account?.costCategory) continue;
