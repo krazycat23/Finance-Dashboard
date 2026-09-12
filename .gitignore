@@ -3,3 +3,5 @@ dist/
 .vite/
 *.local
 test-data/private/
+test-results/
+playwright-report/

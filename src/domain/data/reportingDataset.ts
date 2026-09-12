@@ -25,7 +25,7 @@ export interface ForecastConfiguration { scenarios: ForecastScenarioInput[]; ris
 export interface MappingSummaryInput { dimension: string; total: number; mapped: number; unmapped: number; review: number; valueCoverage: number; }
 export interface UnmappedMember { id: string; dimension: "accounts" | "products"; externalId: string; name: string; value?: number; suggestedLine?: string; suggestedCategory?: string; confidence?: number; }
 export interface DataIssue { id: string; severity: "critical" | "warning" | "info"; category: "Mapping" | "Reconciliation" | "Duplicates" | "Completeness" | "Timeliness"; title: string; detail: string; source: string; affectedRecords: number; firstSeen: string; status: "Open" | "In review" | "Resolved"; }
-export interface ReconciliationResult { id: string; statement: string; sourceTotal: number; mappedTotal: number; difference: number; tolerance: number; status: "Reconciled" | "Within tolerance" | "Exception"; }
+export interface ReconciliationResult { id: string; statement: string; sourceTotal: number; mappedTotal: number; difference: number; tolerance: number; status: "Reconciled" | "Within tolerance" | "Exception" | "Unavailable"; }
 export interface ImportEvent { id: string; feed: string; completedAt: string; durationSeconds: number; records: number; status: "Success" | "Warning" | "Failed"; detail?: string; }
 export interface DataHealthInput { integrityScore: number; mappingWeight?: number; reconciliationWeight?: number; integrityWeight?: number; timelinessWeight?: number; }
 export interface ReportingDataQuality { mappingSummaries: MappingSummaryInput[]; unmappedMembers: UnmappedMember[]; issues: DataIssue[]; reconciliations: ReconciliationResult[]; imports: ImportEvent[]; health: DataHealthInput; }

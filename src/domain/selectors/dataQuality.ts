@@ -67,9 +67,10 @@ export function selectDataHealth(): DataHealth {
   const account = mapping.find((row) => row.dimension === "GL Accounts");
   const product = mapping.find((row) => row.dimension === "Products");
   const exceptions = reconciliation.filter((row) => row.status === "Exception").length;
+  const unavailable = reconciliation.filter((row) => row.status === "Unavailable").length;
   const components = [
     { id: "mapping", label: "Mapping completeness", score: (account?.valueCoverage ?? 1) * 100, weight: weights.mapping },
-    { id: "reconciliation", label: "Reconciliation", score: reconciliation.length ? (1 - exceptions / reconciliation.length) * 100 : 100, weight: weights.reconciliation },
+    { id: "reconciliation", label: "Reconciliation", score: reconciliation.length ? Math.max(0, 1 - (exceptions + unavailable) / reconciliation.length) * 100 : 0, weight: weights.reconciliation },
     { id: "integrity", label: "Record integrity", score: quality.health.integrityScore, weight: weights.integrity },
     { id: "timeliness", label: "Timeliness", score: refresh.length ? refresh.filter((row) => row.status === "Success").length / refresh.length * 100 : 100, weight: weights.timeliness },
   ];

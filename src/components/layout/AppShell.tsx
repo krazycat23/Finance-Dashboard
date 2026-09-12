@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { Sidebar } from "./Sidebar";
+import { CompanySwitcher } from "./CompanySwitcher";
 
 /**
  * APP SHELL
@@ -25,6 +26,7 @@ export function AppShell() {
       <Sidebar />
       <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto">
         <div className="max-w-[1760px] mx-auto px-6 lg:px-8 py-7 pb-16">
+          <CompanySwitcher />
           <Outlet />
         </div>
       </main>

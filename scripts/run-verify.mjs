@@ -24,6 +24,8 @@ try {
     outfile,
     alias: { "@": resolve(root, "src") },
     define: { "import.meta.env.DEV": "false" },
+    banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
+    jsx: "automatic",
     logLevel: "error",
   });
   await import(pathToFileURL(outfile).href);

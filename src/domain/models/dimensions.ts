@@ -10,7 +10,7 @@
 
 export type MappingStatus = "mapped" | "unmapped" | "review" | "excluded";
 export type AccountMappingStatus = "Authoritative" | "Approved Rule" | "Manually Confirmed" | "Needs Review" | "Unmapped";
-export type CanonicalCalculationRole = "grossSales" | "markdowns" | "netSales" | "costOfSales" | "tradingIncomeCost" | "operatingCosts" | "depreciationAmortisation" | "interest" | "tax" | "unconfirmed";
+export type CanonicalCalculationRole = "grossSales" | "markdowns" | "returns" | "revenue" | "netSales" | "costOfSales" | "tradingIncome" | "tradingCost" | "tradingIncomeCost" | "operatingCosts" | "depreciationAmortisation" | "interest" | "tax" | "unconfirmed";
 
 export interface DimensionBase {
   id: string;
@@ -31,6 +31,10 @@ export type StatementType = "pnl" | "balance" | "cashflow";
 export type StatementLine =
   | "unconfirmed"
   // P&L
+  | "grossSales"
+  | "markdowns"
+  | "returns"
+  | "netSales"
   | "revenue"
   | "costOfSales"
   | "grossProfit"

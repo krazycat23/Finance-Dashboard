@@ -199,6 +199,8 @@ export function selectTopVariances(selection: PeriodSelection): VarianceItem[] {
 
   const candidates: { label: string; key: keyof typeof lines.actual; inverse: boolean }[] = [
     { label: "Revenue", key: "revenue", inverse: false },
+    { label: "Markdowns", key: "markdowns", inverse: true },
+    { label: "Returns", key: "returns", inverse: true },
     { label: "Cost of Sales", key: "costOfSales", inverse: true },
     { label: "Operating Costs", key: "operatingCosts", inverse: true },
     { label: "Depreciation & Amortisation", key: "depreciationAmortisation", inverse: true },

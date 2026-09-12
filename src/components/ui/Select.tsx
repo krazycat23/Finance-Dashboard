@@ -32,6 +32,7 @@ export function Select({
       </span>
       <div className="relative">
         <select
+          aria-label={label}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={cn(

@@ -112,9 +112,9 @@ const lineCache = new Map<string, LineTotals>();
 /**
  * Sum finance records into canonical statement lines.
  *
- * Values are stored as positive magnitudes; the account's `sign` describes
- * presentation, not arithmetic. Derived subtotals are computed here so that
- * every consumer gets the same gross profit, not its own version of it.
+ * Values are stored as canonical positive magnitudes. Calculation roles keep
+ * gross sales and contra-revenue separate; derived subtotals are computed here
+ * so every consumer gets the same net sales and gross profit.
  */
 export function aggregateLines(
   periodIds: string[],
@@ -182,7 +182,11 @@ const BALANCE_SHEET_LINES: StatementLine[] = [
 function applyDerivedLines(t: LineTotals): void {
   const v = (line: StatementLine) => t[line] ?? 0;
 
-  t.grossProfit = v("revenue") - v("costOfSales");
+  // Legacy/revenue roles represent an already-net revenue contribution.
+  // Gross-sales roles are explicitly reduced by markdowns and returns.
+  t.netSales = v("grossSales") - v("markdowns") - v("returns") + v("revenue");
+  t.revenue = t.netSales;
+  t.grossProfit = t.netSales - v("costOfSales");
   t.ebitda = t.grossProfit - v("operatingCosts");
   t.ebit = t.ebitda - v("depreciationAmortisation");
   t.netProfit = t.ebit - v("interest") - v("tax");

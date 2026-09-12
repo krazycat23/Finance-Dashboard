@@ -4,6 +4,7 @@ import { ThemeProvider } from "./providers/ThemeProvider";
 import { FilterProvider } from "./providers/FilterProvider";
 import { ReportingDataProvider } from "./providers/ReportingDataProvider";
 import { MockDataAdapter } from "@/data/mock";
+import { ReportingAvailability } from "@/components/finance/ReportingAvailability";
 
 const reportingAdapter = new MockDataAdapter();
 
@@ -32,13 +33,13 @@ export function App() {
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<OverviewPage />} />
-              <Route path="sales" element={<SalesPage />} />
-              <Route path="profit-and-loss" element={<ProfitAndLossPage />} />
-              <Route path="balance-sheet" element={<BalanceSheetPage />} />
-              <Route path="cash-flow" element={<CashFlowPage />} />
-              <Route path="forecasts" element={<ForecastsPage />} />
-              <Route path="kpis" element={<KpisPage />} />
-              <Route path="variance" element={<VariancePage />} />
+              <Route path="sales" element={<ReportingAvailability module="sales"><SalesPage /></ReportingAvailability>} />
+              <Route path="profit-and-loss" element={<ReportingAvailability module="pnl"><ProfitAndLossPage /></ReportingAvailability>} />
+              <Route path="balance-sheet" element={<ReportingAvailability module="balance"><BalanceSheetPage /></ReportingAvailability>} />
+              <Route path="cash-flow" element={<ReportingAvailability module="cashflow"><CashFlowPage /></ReportingAvailability>} />
+              <Route path="forecasts" element={<ReportingAvailability module="forecast"><ForecastsPage /></ReportingAvailability>} />
+              <Route path="kpis" element={<ReportingAvailability module="kpis"><KpisPage /></ReportingAvailability>} />
+              <Route path="variance" element={<ReportingAvailability module="variance"><VariancePage /></ReportingAvailability>} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="data-mapping" element={<DataMappingPage />} />
               <Route path="settings" element={<SettingsPage />} />

@@ -121,7 +121,7 @@ export function DataMappingPage() {
         row.difference === 0 ? (
           <span className="text-tertiary">—</span>
         ) : (
-          <span className={row.status === "Exception" ? "text-negative font-medium" : "text-secondary"}>
+          <span className={row.status === "Exception" ? "text-negative font-medium" : row.status === "Unavailable" ? "text-tertiary" : "text-secondary"}>
             {formatCurrency(row.difference)}
           </span>
         ),
@@ -137,7 +137,7 @@ export function DataMappingPage() {
           tone={
             row.status === "Reconciled" ? "positive"
             : row.status === "Within tolerance" ? "caution"
-            : "negative"
+            : row.status === "Unavailable" ? "neutral" : "negative"
           }
         >
           {row.status}

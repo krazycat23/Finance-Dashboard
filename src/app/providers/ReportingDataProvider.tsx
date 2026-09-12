@@ -1,29 +1,47 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { setReportingDataset, type ReportingDataAdapter, type ReportingDataset } from "@/domain/data";
+import { ReportingRuntime, type ReportingRuntimeState } from "@/domain/data/runtime";
+import { IndexedDbImportWorkspaceStore, type ImportWorkspaceStore } from "@/domain/ingestion/storage";
+import type { ImportWorkspace } from "@/domain/ingestion/types";
 
-interface ReportingDataContextValue { dataset: ReportingDataset; activateDataset: (dataset: ReportingDataset) => void; activateDefaultDataset: () => void; }
+interface ReportingDataContextValue extends ReportingRuntimeState {
+  store: ImportWorkspaceStore;
+  companies: ImportWorkspace[];
+  refreshCompanies: () => Promise<void>;
+  activateWorkspace: (workspace: ImportWorkspace) => Promise<void>;
+  switchCompany: (id: string) => Promise<void>;
+  activateDefaultDataset: () => Promise<void>;
+}
 const ReportingDataContext = createContext<ReportingDataContextValue | null>(null);
 
-/** Loads one canonical dataset for the application and exposes it to UI state. */
-export function ReportingDataProvider({ adapter, children }: { adapter: ReportingDataAdapter; children: ReactNode }) {
-  const [dataset, activateDataset] = useState<ReportingDataset>(() => adapter.load());
-  // Selectors are synchronous pure functions used during render. Activating the
-  // immutable dataset here makes their service view match this context; the
-  // keyed subtree below remounts all reporting state when it changes.
-  setReportingDataset(dataset);
-  const activateDefaultDataset = () => activateDataset(adapter.load());
-  const value = useMemo(() => ({ dataset, activateDataset, activateDefaultDataset }), [dataset, adapter]);
-  return <ReportingDataContext.Provider value={value}><div key={dataset.id}>{children}</div></ReportingDataContext.Provider>;
-}
-
-export function useReportingDataset(): ReportingDataset {
-  const dataset = useContext(ReportingDataContext);
-  if (!dataset) throw new Error("useReportingDataset must be used inside ReportingDataProvider");
-  return dataset.dataset;
+export function ReportingDataProvider({ adapter, children, store }: { adapter: ReportingDataAdapter; children: ReactNode; store?: ImportWorkspaceStore }) {
+  const [runtime] = useState(() => new ReportingRuntime(store ?? new IndexedDbImportWorkspaceStore(), adapter));
+  const [state, setState] = useState<ReportingRuntimeState>();
+  const [companies, setCompanies] = useState<ImportWorkspace[]>([]);
+  const [error, setError] = useState<string>();
+  const refreshCompanies = async () => setCompanies(await runtime.store.list());
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try { const restored = await runtime.restore(); const saved = await runtime.store.list(); if (mounted) { setState(restored); setCompanies(saved); } }
+      catch (cause) { if (mounted) setError(String(cause)); }
+    })();
+    return () => { mounted = false; };
+  }, [runtime]);
+  const switchCompany = async (id: string) => { const next = await runtime.switchCompany(id); setState(next); setError(undefined); };
+  if (!state) return <div className="p-8 text-sm" role="status">{error ? <>Saved company could not be restored: {error}<button className="ml-3 underline" onClick={() => void switchCompany("demo").catch(cause => setError(String(cause)))}>Open demo explicitly</button></> : "Restoring reporting workspace…"}</div>;
+  setReportingDataset(state.dataset);
+  const value: ReportingDataContextValue = {
+    ...state, store: runtime.store, companies, refreshCompanies, switchCompany,
+    activateDefaultDataset: () => switchCompany("demo"),
+    activateWorkspace: async workspace => { const next = await runtime.activate(workspace); await refreshCompanies(); setState(next); },
+  };
+  return <ReportingDataContext.Provider value={value}><div key={state.revision}>{children}</div></ReportingDataContext.Provider>;
 }
 
 export function useReportingDataController(): ReportingDataContextValue {
   const context = useContext(ReportingDataContext);
-  if (!context) throw new Error("useReportingDataController must be used inside ReportingDataProvider");
+  if (!context) throw new Error("Reporting data hooks require ReportingDataProvider");
   return context;
 }
+export function useReportingDataset(): ReportingDataset { return useReportingDataController().dataset; }

@@ -4,16 +4,18 @@ import { detectTableRange, rowsFromRange } from "./tableDetection";
 import type { Classification, ImportSource, StagedDataset } from "./types";
 
 const id = () => crypto.randomUUID();
-const rowsForSheet = (sheet: XLSX.WorkSheet) => XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw: false, blankrows: true });
+/** CSV has no cell types. Reading it raw prevents SheetJS treating identifiers
+ * such as 202701 and 0040 as dates/numbers before field mapping can decide. */
+const rowsForSheet = (sheet: XLSX.WorkSheet, raw: boolean) => XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw, blankrows: true });
 
 export async function stageLocalFile(companyId: string, file: File): Promise<{ source: ImportSource; datasets: StagedDataset[] }> {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension !== "csv" && extension !== "xlsx" && extension !== "xls") throw new Error("Only CSV and XLSX files are supported.");
   const sourceId = id(); const type = extension === "csv" ? "csv" : "xlsx";
-  const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  const buffer = await file.arrayBuffer(); const csv = extension === "csv"; const workbook = XLSX.read(buffer, { type: "array", cellDates: !csv, raw: csv });
   const source: ImportSource = { id: sourceId, companyId, filename: file.name, fileType: type, uploadedAt: new Date().toISOString(), sheetNames: workbook.SheetNames };
   const datasets = workbook.SheetNames.map((sheetName) => {
-    const grid = rowsForSheet(workbook.Sheets[sheetName]); const tableRange=detectTableRange(grid); const rows=tableRange ? rowsFromRange(grid, tableRange) : []; const header=tableRange ? Object.keys(rows[0] ?? {}) : [];
+    const grid = rowsForSheet(workbook.Sheets[sheetName], csv); const tableRange=detectTableRange(grid); const rows=tableRange ? rowsFromRange(grid, tableRange) : []; const header=tableRange ? Object.keys(rows[0] ?? {}) : [];
     const columns = header;
     const inferred = classifyDataset(columns);
     // The mapping workbook is a first-class authoritative input, not an account-master guess.

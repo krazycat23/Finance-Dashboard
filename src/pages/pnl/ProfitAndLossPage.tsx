@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
+import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSections } from "@/components/layout/AppShell";
@@ -27,6 +29,9 @@ const PNL_KPIS = [
 ];
 
 export function ProfitAndLossPage() {
+  return useReportingDataset().source === "demo" ? <DemoProfitAndLossPage/> : <ConfiguredReporting mode="pnl"/>;
+}
+function DemoProfitAndLossPage() {
   const { selection, currentPeriod } = useFilters();
 
   const kpis = useMemo(() => selectKpis(PNL_KPIS, selection), [selection]);

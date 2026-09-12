@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
+import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
 import { PageHeader, } from "@/components/layout/PageHeader";
 import { PageSections } from "@/components/layout/AppShell";
@@ -39,6 +41,10 @@ type RankMetric = "revenue" | "margin" | "ebitda";
 type StatementTab = "pnl" | "balance" | "cashflow";
 
 export function OverviewPage() {
+  const dataset = useReportingDataset();
+  return dataset.source === "demo" ? <DemoOverviewPage/> : <ConfiguredReporting mode="overview"/>;
+}
+function DemoOverviewPage() {
   const { selection, currentPeriod } = useFilters();
   const [rankMetric, setRankMetric] = useState<RankMetric>("revenue");
   const [statementTab, setStatementTab] = useState<StatementTab>("pnl");

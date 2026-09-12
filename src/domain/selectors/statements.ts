@@ -28,7 +28,11 @@ interface LineSpec {
 }
 
 const PNL_SPEC: LineSpec[] = [
-  { line: "revenue", label: "Revenue", emphasis: "subtotal" },
+  { line: "grossSales", label: "Gross Sales", emphasis: "detail", depth: 1 },
+  { line: "markdowns", label: "Markdowns", emphasis: "detail", depth: 1, inverse: true },
+  { line: "returns", label: "Returns", emphasis: "detail", depth: 1, inverse: true },
+  // `revenue` remains the selector/metric contract; its derived value is Net Sales.
+  { line: "revenue", label: "Net Sales", emphasis: "subtotal" },
   { line: "costOfSales", label: "Cost of Sales", emphasis: "detail", depth: 1, inverse: true },
   { line: "grossProfit", label: "Gross Profit", emphasis: "subtotal" },
   { line: "operatingCosts", label: "Operating Costs", emphasis: "detail", depth: 1, inverse: true },

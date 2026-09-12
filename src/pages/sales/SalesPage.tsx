@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
+import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSections } from "@/components/layout/AppShell";
@@ -36,6 +38,9 @@ const SALES_KPIS = [
 type ProductMeasure = "revenue" | "grossProfit" | "units";
 
 export function SalesPage() {
+  return useReportingDataset().source === "demo" ? <DemoSalesPage/> : <ConfiguredReporting mode="sales"/>;
+}
+function DemoSalesPage() {
   const { selection, currentPeriod } = useFilters();
   const [productMeasure, setProductMeasure] = useState<ProductMeasure>("revenue");
 

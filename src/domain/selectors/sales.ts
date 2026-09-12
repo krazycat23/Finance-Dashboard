@@ -191,9 +191,11 @@ export function selectWeeklySales(
 
   // Weeks belong to a month via their id prefix; take every week up to and
   // including the reporting month, then the most recent `weekCount` of them.
-  const eligible = dataset().weeks.filter(
-    (w) => w.id.slice(0, 7) <= anchorMonth && w.isActual,
-  );
+  const reportedWeeks = new Set(dataset().weeklySalesRecords.map(record => record.periodId));
+  const anchorDate = dataset().periods.find(period => period.id === anchorMonth)?.date;
+  const eligible = dataset().weeks.filter(w => dataset().source === "demo"
+    ? w.id.slice(0, 7) <= anchorMonth && w.isActual
+    : !!anchorDate && (w.weekEnd ?? w.date) <= anchorDate && reportedWeeks.has(w.id));
   const window = eligible.slice(-weekCount);
   const windowIds = new Set(window.map((w) => w.id));
 
