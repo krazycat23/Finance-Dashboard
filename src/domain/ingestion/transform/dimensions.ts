@@ -1,0 +1,7 @@
+import type { Channel, CostCentre, Customer, Department, Entity, Location, Product } from "@/domain/models";
+
+export interface DimensionTokens { entities: Map<string,string>; costCentres: Map<string,string>; departments: Map<string,string>; locations: Map<string,string>; channels: Map<string,string>; products: Map<string,string>; customers: Map<string,string>; }
+export const createDimensionTokens=():DimensionTokens=>({entities:new Map(),costCentres:new Map(),departments:new Map(),locations:new Map(),channels:new Map(),products:new Map(),customers:new Map()});
+const entries=(values:Map<string,string>)=>[...values].map(([id,name])=>({id,name,externalId:id,mappingStatus:"mapped" as const}));
+export function materialiseDimensions(tokens:DimensionTokens,groupName:string){const members=entries(tokens.entities);const entities:Entity[]=[{id:"company",name:groupName,level:0},...members.filter(member=>member.id!=="company").map(member=>({...member,parentId:"company",level:1}))];return{entities,costCentres:entries(tokens.costCentres) as CostCentre[],departments:entries(tokens.departments) as Department[],locations:entries(tokens.locations).map(member=>({...member,region:"Unknown"})) as Location[],channels:entries(tokens.channels) as Channel[],products:entries(tokens.products).map(member=>({...member,category:"Unclassified"})) as Product[],customers:entries(tokens.customers) as Customer[]};}
+export const remember=(map:Map<string,string>,id:string,name?:string)=>{if(id&&!map.has(id))map.set(id,name||id);return id;};

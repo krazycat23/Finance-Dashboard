@@ -23,3 +23,10 @@ export async function stageLocalFile(companyId: string, file: File): Promise<{ s
   });
   return { source, datasets };
 }
+
+/** Rebuilds a staged sheet after a reviewer changes its selected rectangular range. */
+export function restageDatasetRange(dataset: StagedDataset, tableRange: NonNullable<StagedDataset["tableRange"]>): StagedDataset {
+  if (!dataset.rawGrid) return { ...dataset, tableRange, rangeConfirmed: true };
+  const rows=rowsFromRange(dataset.rawGrid,tableRange); const columns=Object.keys(rows[0]??{});
+  return { ...dataset, rows, columns:columns.map(column=>profileColumn(column,rows)), inferred:classifyDataset(columns), tableRange, rangeConfirmed:true, warnings:[], errors:[], wideUnpivot:dataset.wideUnpivot?{...dataset.wideUnpivot,identifierColumns:dataset.wideUnpivot.identifierColumns.filter(column=>columns.includes(column)),valueColumns:dataset.wideUnpivot.valueColumns.filter(column=>columns.includes(column))}:undefined };
+}
