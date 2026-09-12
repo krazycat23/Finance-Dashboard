@@ -40,6 +40,7 @@ export interface ReportingDimensions {
   products: Product[];
   customers: Customer[];
 }
+export interface DatasetCapabilities { hasPnl: boolean; hasBalanceSheet: boolean; hasCashFlow: boolean; hasSales: boolean; hasWeeklySales: boolean; hasBudget: boolean; hasForecast: boolean; hasOperationalKpis: boolean; }
 
 export interface ReportingDataset {
   id: string;
@@ -60,6 +61,7 @@ export interface ReportingDataset {
   forecastConfiguration?: ForecastConfiguration;
   /** Demo-only narrative inputs; generic selectors do not own company assumptions. */
   dataQuality: ReportingDataQuality;
+  capabilities?: DatasetCapabilities;
 }
 
 export interface ReportingDataAdapter {

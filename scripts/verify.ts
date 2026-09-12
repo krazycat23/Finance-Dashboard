@@ -20,7 +20,7 @@
 
 import { MockDataAdapter } from "@/data/mock";
 import { setReportingDataset } from "@/domain/data";
-import { authoritativeRules, buildImportedDataset, classifyDataset, detectTableRange, resolveAccountRule, suggestFieldMappings, unpivotWideRows, validateWorkspace, type ImportWorkspace } from "@/domain/ingestion";
+import { authoritativeRules, buildCalendar, buildImportedDataset, classifyDataset, detectTableRange, resolveAccountRule, resolveHierarchyRole, suggestFieldMappings, unpivotWideRows, validateWorkspace, MemoryImportWorkspaceStore, type ImportWorkspace } from "@/domain/ingestion";
 import type { PeriodSelection } from "@/domain/models";
 import {
   selectBalanceSheet, selectCashBridge, selectCashFlow, selectEbitdaBridge,
@@ -239,7 +239,7 @@ const importCompany = { id: "fixture-services", createdAt: "2026-01-01", updated
 const financeRows = [{ Period: "2026-01", Account: "41001", "Account Name": "Consulting revenue", Entity: "Services", Amount: "125000" }];
 const fixtureDataset = { id: "fixture-finance", sourceFileId: "fixture-file", columns: [], rows: financeRows, inferred: classifyDataset(Object.keys(financeRows[0])), confirmedType: "finance_actual" as const, status: "staged" as const, warnings: [], errors: [] };
 const fixtureMappings = suggestFieldMappings(fixtureDataset.id, Object.keys(financeRows[0])).map((mapping) => ({ ...mapping, status: mapping.canonicalField === "accountId" || mapping.canonicalField === "amount" ? "mapped" as const : mapping.status }));
-const workspace: ImportWorkspace = { company: importCompany, sources: [], datasets: [fixtureDataset], mappings: fixtureMappings, rules: [{ id: "broad", companyId: importCompany.id, priority: 1, kind: "prefix", value: "41*", statement: "pnl", line: "revenue", sign: 1 }, { id: "specific", companyId: importCompany.id, priority: 2, kind: "exact", value: "41001", statement: "pnl", line: "revenue", sign: 1 }], customDimensions: [], scenarios: [], calendar: { fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" }, issues: [], reconciliations: [] };
+const workspace: ImportWorkspace = { company: importCompany, sources: [], datasets: [fixtureDataset], mappings: fixtureMappings, rules: [{ id: "broad", companyId: importCompany.id, priority: 1, kind: "prefix", value: "41*", statement: "pnl", line: "revenue", sign: 1 }, { id: "specific", companyId: importCompany.id, priority: 2, kind: "exact", value: "41001", statement: "pnl", line: "revenue", sign: 1 }], customDimensions: [], scenarios: [{ datasetId: fixtureDataset.id, scenarioId: "actual", kind: "actual", label: "Actual" }], calendar: { fiscalYearStartMonth: 1, fiscalYearLabel: "endYear" }, issues: [], reconciliations: [] };
 const imported = buildImportedDataset(workspace);
 expect("ingestion classifies finance fixture", fixtureDataset.inferred.type === "finance_actual", "finance-shaped columns were not classified as finance actual");
 expect("mapping rule precedence", resolveAccountRule("41001", "Consulting revenue", workspace.rules)?.id === "specific", "specific account mapping did not override broad prefix rule");
@@ -262,6 +262,21 @@ expect("schema header beats Gross Sales data", mappingRange?.headerRow === 1, "m
 expect("later August header is recognised", augustRange?.headerRow === 2, "header detector did not distinguish title row from schema row");
 expect("pivot blocks require table selection", !!pivotRange?.requiresConfirmation, "pivot/filter block was silently accepted");
 expect("literal income and cost signs", authoritativeRules({ ...authWorkspace, datasets: [{ ...mappingDataset, rows: [{ "GL Code": "1000", "Sign Convention": "income" }, { "GL Code": "2060", "Sign Convention": "cost" }] }] }).map(rule => rule.sourceMultiplier).join(",") === "1,-1", "income/cost source multipliers are incorrect");
+const calendarRows = Array.from({ length: 52 }, (_, index) => ({ "Week Start": `2026-07-${String(index + 1).padStart(2, "0")}`, "Week End": `2026-07-${String(index + 2).padStart(2, "0")}`, Fin_Period: `2027${String(Math.floor(index / 4) + 1).padStart(2, "0")}`, "Fiscal Week": String(index + 1), "Fiscal Month": String(Math.floor(index / 4) + 1), "Fiscal Quarter": String(Math.floor(index / 13) + 1), FY: "FY27" }));
+const calendarFixture = { id: "calendar", sourceFileId: "calendar-file", columns: [], rows: calendarRows, inferred: { type: "financial_calendar" as const, confidence: 1, reasons: [] }, status: "staged" as const, warnings: [], errors: [] };
+const parsedCalendar = buildCalendar({ ...workspace, datasets: [calendarFixture] });
+expect("real-style calendar aliases create 52 weeks", parsedCalendar.weeks.length === 52 && parsedCalendar.weeks[0]?.externalPeriodToken === "202701", "Fin_Period/Fiscal Week calendar aliases did not produce 52 retained weeks");
+expect("three identifiers survive wide unpivot", JSON.stringify(unpivotWideRows([{ Entity: "E", GL: "1000", "Cost Centre": "CC", "2026-07": 1 }], { identifierColumns: ["Entity", "GL", "Cost Centre"], valueColumns: ["2026-07"], periodFromColumn: true })[0]) === JSON.stringify({ Entity: "E", GL: "1000", "Cost Centre": "CC", amount: 1, period: "2026-07" }), "wide transform dropped an identifier dimension");
+expect("scenario confirmation blocks activation", !buildImportedDataset({ ...workspace, scenarios: [] }).dataset, "unconfirmed scenario was activated");
+const hierarchyRoles = [{ id: "parent", companyId: importCompany.id, p2: "Sales", calculationRole: "grossSales" as const, line: "revenue" as const, status: "Approved Rule" as const, provenance: "hierarchy_node" as const }, { id: "child", companyId: importCompany.id, p2: "Sales", p3: "Markdowns", calculationRole: "markdowns" as const, line: "revenue" as const, status: "Manually Confirmed" as const, provenance: "hierarchy_node" as const }];
+expect("hierarchy parent role inheritance", resolveHierarchyRole({ p2: "Sales", p3: "Gross Sales" }, hierarchyRoles)?.calculationRole === "grossSales", "parent hierarchy role did not inherit");
+expect("hierarchy child override precedence", resolveHierarchyRole({ p2: "Sales", p3: "Markdowns" }, hierarchyRoles)?.calculationRole === "markdowns", "specific hierarchy role did not override parent");
+const memoryStore = new MemoryImportWorkspaceStore(); await memoryStore.save({ ...workspace, hierarchyRoles, datasets: [{ ...fixtureDataset, wideUnpivot: { identifierColumns: ["Period", "Account", "Entity"], valueColumns: ["Amount"], periodFromColumn: true }, rangeConfirmed: true }] }); const restored = await memoryStore.load(importCompany.id);
+expect("workspace persistence restores onboarding decisions", restored?.hierarchyRoles?.[1]?.p3 === "Markdowns" && restored.datasets[0]?.wideUnpivot?.identifierColumns.length === 3 && restored.scenarios.length === 1, "workspace restore lost persisted onboarding decisions");
+const activatedHierarchy = buildImportedDataset({ ...authWorkspace, hierarchyRoles, scenarios: [{ datasetId: fixtureDataset.id, scenarioId: "actual", kind: "actual", label: "Actual" }] });
+expect("hierarchy role resolves inside activation", activatedHierarchy.dataset?.dimensions.accounts.find(account => account.id === "41001")?.line === "revenue", "activated account did not inherit canonical line from hierarchy node");
+expect("capabilities derive from imported facts", activatedHierarchy.dataset?.capabilities?.hasPnl === true && activatedHierarchy.dataset.capabilities.hasBalanceSheet === false && activatedHierarchy.dataset.capabilities.hasCashFlow === false, "imported company capabilities were fabricated");
+expect("integrity is derived rather than hardcoded", activatedHierarchy.dataset?.dataQuality.health.integrityScore !== 100 || activatedHierarchy.dataset.dataQuality.mappingSummaries[0]?.valueCoverage === 1, "integrity score is a hardcoded certainty");
 
 // --- Report ---------------------------------------------------------------
 if (failures.length === 0) {

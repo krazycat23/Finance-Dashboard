@@ -18,6 +18,11 @@ export interface Period {
   fiscalYear: string;
   fiscalPeriod: number;
   fiscalWeek?: number;
+  /** Source token such as Fin_Period 202701, retained for calendar resolution. */
+  externalPeriodToken?: string;
+  weekStart?: string;
+  weekEnd?: string;
+  fiscalQuarter?: number;
   calendarYear: number;
   calendarMonth: number;
   /**
