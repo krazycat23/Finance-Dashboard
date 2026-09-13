@@ -359,6 +359,32 @@ const contraLines = selectLines({ entityId: "company", basis: "MTD", periodId: "
 expect("contra-revenue roles produce exact net-sales arithmetic", contraLines.actual.grossSales === 1000 && contraLines.actual.markdowns === 100 && contraLines.actual.returns === 50 && contraLines.actual.netSales === 850 && contraLines.actual.revenue === 850 && contraLines.actual.grossProfit === 450 && contraLines.actual.ebitda === 250, "gross sales, markdowns, returns, COGS and EBITDA did not reconcile");
 expect("contra-revenue appears as adverse statement variance", contraPnl.find(row => row.line === "markdowns")?.actual === 100 && contraPnl.find(row => row.line === "markdowns")?.budget === 80 && calculateStatementVariance(100, 80, true)?.sentiment === "negative", "markdown variance did not retain adverse cost semantics");
 expect("contra-revenue is adverse in variance ranking", selectTopVariances({ entityId: "company", basis: "MTD", periodId: "2026-07" }).find(item => item.label === "Markdowns")?.variance === -20, "markdown variance ranking treated increased markdowns as favourable");
+// Imported reporting cut-off: the calendar includes plan months, but only
+// valid Actual facts may establish which months are closed reporting periods.
+const cutoffActualRows = [
+  { Period: "2026-07", Entity: "A", Account: "41001", Amount: "100" },
+  { Period: "2026-08", Entity: "A", Account: "41001", Amount: "200" },
+];
+const cutoffBudgetRows = [
+  ["2026-07", "110"], ["2026-08", "210"], ["2026-09", "300"], ["2026-10", "400"],
+  ["2026-11", "500"], ["2026-12", "600"], ["2027-01", "700"], ["2027-02", "800"],
+  ["2027-03", "900"], ["2027-04", "1000"], ["2027-05", "1100"], ["2027-06", "1200"],
+].map(([Period, Amount]) => ({ Period, Entity: "A", Account: "41001", Amount }));
+const cutoffActual = { ...fixtureDataset, id: "cutoff-actual", sourceFileId: "cutoff-actual-file", rows: cutoffActualRows, confirmedType: "finance_actual" as const };
+const cutoffBudget = { ...fixtureDataset, id: "cutoff-budget", sourceFileId: "cutoff-budget-file", rows: cutoffBudgetRows, inferred: { type: "budget" as const, confidence: 1, reasons: [] }, confirmedType: "budget" as const };
+const cutoffMappings = [cutoffActual, cutoffBudget].flatMap(dataset => suggestFieldMappings(dataset.id, Object.keys(cutoffActualRows[0]!)).map(mapping => ({ ...mapping, status: ["period", "entityId", "accountId", "amount"].includes(mapping.canonicalField) ? "mapped" as const : mapping.status })));
+const cutoffWorkspace: ImportWorkspace = { ...workspace, datasets: [cutoffActual, cutoffBudget], mappings: cutoffMappings, scenarios: [{ datasetId: cutoffActual.id, scenarioId: "cutoff-actual", kind: "actual", label: "Actual" }, { datasetId: cutoffBudget.id, scenarioId: "cutoff-budget", kind: "budget", label: "Original Budget" }] };
+const cutoffImport = buildImportedDataset(cutoffWorkspace);
+const cutoffData = cutoffImport.dataset!;
+setReportingDataset(cutoffData);
+expect("actual facts establish imported reporting cut-off", cutoffData.currentPeriodId === "2026-08" && cutoffData.periods.find(period => period.id === "2026-07")?.isActual === true && cutoffData.periods.find(period => period.id === "2026-08")?.isActual === true && cutoffData.periods.filter(period => period.id >= "2026-09").every(period => !period.isActual), "budget-only future periods were marked closed actuals or the actual cut-off was wrong");
+const cutoffAugust = selectLines({ entityId: "company", basis: "MTD", periodId: "2026-08" });
+const cutoffYtd = selectLines({ entityId: "company", basis: "YTD", periodId: "2026-08" });
+const cutoffFutureBudget = selectLines({ entityId: "company", basis: "MTD", periodId: "2027-06" });
+expect("actual MTD and YTD stop at imported actual horizon", cutoffAugust.actual.revenue === 200 && cutoffYtd.actual.revenue === 300, "actual MTD/YTD included plan months or omitted valid actual facts");
+expect("future budget remains queryable without becoming actual", cutoffFutureBudget.budget.revenue === 1200 && cutoffFutureBudget.actual.revenue === 0 && cutoffData.currentPeriodId !== "2027-06", "future budget was inaccessible or treated as closed actual reporting");
+const noActualImport = buildImportedDataset({ ...cutoffWorkspace, datasets: [cutoffBudget], mappings: cutoffMappings.filter(mapping => mapping.datasetId === cutoffBudget.id), scenarios: [{ datasetId: cutoffBudget.id, scenarioId: "cutoff-budget", kind: "budget", label: "Original Budget" }] });
+expect("missing actual facts block an invented reporting cutoff", !noActualImport.dataset && noActualImport.issues.some(issue => issue.id === "finance:actual-reporting-cutoff"), "budget-only import invented a current actual reporting period");
 // Stage evidence: raw wide source, unpivot, sign adjustment, mapping split,
 // and independently read canonical facts.
 const wideReconciliationRows = [{ Entity: "A", GL: "1000", "2026-07": 1000, "2026-08": 200 }, { Entity: "A", GL: "9999", "2026-07": -10, "2026-08": -5 }];

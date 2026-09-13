@@ -4,6 +4,35 @@ import { amount, cell, fieldValue, isFinance, prepareDatasetRows, text } from ".
 
 export interface CalendarResult { periods: Period[]; weeks: Period[]; periodTokenIds: ReadonlyMap<string, string>; }
 
+/**
+ * Reporting months describe the available calendar; they do not, by
+ * themselves, establish that actuals have closed.  That boundary is derived
+ * from successfully transformed Actual facts after finance transformation.
+ */
+export interface ActualReportingHorizon {
+  periods: Period[];
+  currentPeriodId?: string;
+}
+
+export function applyActualReportingHorizon(
+  periods: readonly Period[],
+  actualFactPeriodIds: Iterable<string>,
+): ActualReportingHorizon {
+  const available = new Set(periods.map(period => period.id));
+  const currentPeriodId = [...new Set(actualFactPeriodIds)]
+    .filter(id => available.has(id))
+    .sort()
+    .at(-1);
+
+  return {
+    currentPeriodId,
+    // A confirmed actual fact establishes the closed reporting horizon.  Plan
+    // periods after that horizon remain available for budget/forecast queries,
+    // but must never be presented as actual reporting periods.
+    periods: periods.map(period => ({ ...period, isActual: !!currentPeriodId && period.id <= currentPeriodId })),
+  };
+}
+
 /** Preserve identifier-looking tokens; only parse a value as a date after
  * excluding fiscal codes such as 202701. The output is the canonical month ID. */
 export function resolveMonthlyPeriodToken(value: unknown): string | undefined {
@@ -27,7 +56,7 @@ function buildMonth(id: string, index: number, all: string[], fiscalStart: numbe
     const [candidateYear, candidateMonth] = candidate.split("-").map(Number);
     return `FY${String(candidateMonth >= fiscalStart ? candidateYear + 1 : candidateYear).slice(-2)}` === fiscalYear;
   });
-  return { id, date: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10), grain: "month", label: id, shortLabel: id.slice(5), fiscalYear, fiscalPeriod, calendarYear: year, calendarMonth: month, isActual: true, previousPeriodId: all[index - 1], fiscalYearPeriodIds: sameYear, quarterPeriodIds: sameYear.filter(candidate => {
+  return { id, date: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10), grain: "month", label: id, shortLabel: id.slice(5), fiscalYear, fiscalPeriod, calendarYear: year, calendarMonth: month, isActual: false, previousPeriodId: all[index - 1], fiscalYearPeriodIds: sameYear, quarterPeriodIds: sameYear.filter(candidate => {
     const candidateMonth = Number(candidate.slice(5));
     return Math.floor(((candidateMonth - fiscalStart + 12) % 12) / 3) === Math.floor((fiscalPeriod - 1) / 3);
   }) };

@@ -2,7 +2,7 @@ import type { ReportingDataset } from "@/domain/data";
 import type { IngestionIssue, IngestionReconciliation, ImportWorkspace } from "./types";
 import { createTransformationContext } from "./transform/context";
 import { resolveAccountMappings } from "./transform/accounts";
-import { resolvePeriods } from "./transform/periods";
+import { applyActualReportingHorizon, resolvePeriods } from "./transform/periods";
 import { transformFinanceSources } from "./transform/finance";
 import { deriveDatasetCapabilities } from "./transform/capabilities";
 import { scenarioRoles } from "./transform/scenarios";
@@ -26,10 +26,12 @@ export function buildImportedDataset(workspace:ImportWorkspace):{dataset?:Report
   const calendar=resolvePeriods(context);
   const tokens=createDimensionTokens();
   const finance=transformFinanceSources(context,resolveAccountMappings(workspace),tokens,calendar);
+  const reportingHorizon=applyActualReportingHorizon(calendar.periods,finance.records.filter(record=>record.actual!==undefined).map(record=>record.periodId));
   const weekLookup=new Map(calendar.weeks.flatMap(week=>[[week.id,week.id],[week.externalPeriodToken??"",week.id],[`W${String(week.fiscalWeek??"").padStart(2,"0")}`,week.id],[week.weekEnd??"",week.id]]));
   const sales=transformSalesSources(context,new Set(calendar.periods.map(period=>period.id)),weekLookup,tokens);
   const total=[...finance.magnitude.values()].reduce((sum,value)=>sum+value,0),threshold=Math.max(1,total*.001);
   issues.push(...finance.issues);
+  if(!reportingHorizon.currentPeriodId)issues.push(issue("finance","actual-reporting-cutoff","No confirmed Actual scenario contains valid canonical finance facts; cannot establish a reporting cutoff.",0));
   if(finance.unresolved>=threshold)issues.push(issue("finance","canonical-role",`Material unresolved canonical roles: ${finance.unresolved.toFixed(2)} magnitude.`,1));
   if(sales.issues.length) for(const message of sales.issues) issues.push(issue("sales","period",message,1));
   const reconciliations=buildFinanceReconciliations(finance.reconciliation);
@@ -41,7 +43,7 @@ export function buildImportedDataset(workspace:ImportWorkspace):{dataset?:Report
   // independently captured reconciliation comparison must pass.
   const integrityScore=Math.round(valueCoverage*reconciliationScore*100);
   const dimensions=materialiseDimensions(tokens,workspace.company.profile.companyName);
-  const dataset:ReportingDataset={id:`import:${workspace.company.id}:${Date.now()}`,source:"import",periods:calendar.periods,weeks:calendar.weeks,dimensions:{...dimensions,accounts:[...finance.accounts.values()]},financeRecords:finance.records,salesRecords:sales.salesRecords,weeklySalesRecords:sales.weeklySalesRecords,operationalRecords:[],cashFlowRecords:[],scenarios:workspace.scenarios.map(s=>({id:s.scenarioId,kind:s.kind,label:s.label,version:s.version})),currentPeriodId:calendar.periods.at(-1)?.id??"",defaultEntityId:"company",profile:workspace.company.profile,scenarioRoles:scenarioRoles(workspace),capabilities:deriveDatasetCapabilities(finance.records,sales.salesRecords,sales.weeklySalesRecords),dataQuality:{mappingSummaries:[{dimension:"GL Accounts",total:finance.magnitude.size,mapped,unmapped:finance.magnitude.size-mapped,review:finance.magnitude.size-mapped,valueCoverage}],unmappedMembers:[],issues:[],reconciliations:reconciliations.map(r=>({id:r.id,statement:r.label,sourceTotal:r.sourceTotal,mappedTotal:r.targetTotal,difference:r.difference,tolerance:r.tolerance,status:r.status==="pass"?"Reconciled":r.status==="warning"?"Within tolerance":r.status==="unavailable"?"Unavailable":"Exception"})),imports:[],health:{integrityScore}}};
+  const dataset:ReportingDataset={id:`import:${workspace.company.id}:${Date.now()}`,source:"import",periods:reportingHorizon.periods,weeks:calendar.weeks,dimensions:{...dimensions,accounts:[...finance.accounts.values()]},financeRecords:finance.records,salesRecords:sales.salesRecords,weeklySalesRecords:sales.weeklySalesRecords,operationalRecords:[],cashFlowRecords:[],scenarios:workspace.scenarios.map(s=>({id:s.scenarioId,kind:s.kind,label:s.label,version:s.version})),currentPeriodId:reportingHorizon.currentPeriodId??"",defaultEntityId:"company",profile:workspace.company.profile,scenarioRoles:scenarioRoles(workspace),capabilities:deriveDatasetCapabilities(finance.records,sales.salesRecords,sales.weeklySalesRecords),dataQuality:{mappingSummaries:[{dimension:"GL Accounts",total:finance.magnitude.size,mapped,unmapped:finance.magnitude.size-mapped,review:finance.magnitude.size-mapped,valueCoverage}],unmappedMembers:[],issues:[],reconciliations:reconciliations.map(r=>({id:r.id,statement:r.label,sourceTotal:r.sourceTotal,mappedTotal:r.targetTotal,difference:r.difference,tolerance:r.tolerance,status:r.status==="pass"?"Reconciled":r.status==="warning"?"Within tolerance":r.status==="unavailable"?"Unavailable":"Exception"})),imports:[],health:{integrityScore}}};
   return{dataset,issues,reconciliations};
 }
 export class ImportedCompanyAdapter {readonly id:string;private readonly workspace:ImportWorkspace;constructor(workspace:ImportWorkspace){this.workspace=workspace;this.id=`imported:${workspace.company.id}`;}load(){const result=buildImportedDataset(this.workspace);if(!result.dataset)throw new Error("Imported company has blocking validation errors.");return result.dataset;}}
