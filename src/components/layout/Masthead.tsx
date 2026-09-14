@@ -68,7 +68,7 @@ export function Masthead({
         </div>
       )}
 
-      <EditorialPlate className="min-h-[218px] hidden lg:block" align="bottom">
+      <EditorialPlate className="min-h-[218px] hidden lg:flex" align="bottom">
         <dl className="grid grid-cols-2 gap-x-6 text-[9px] font-semibold uppercase tracking-[0.15em] leading-[1.9]">
           {context.map((entry) => (
             <div key={entry.label}>

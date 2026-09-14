@@ -4,75 +4,94 @@ import { cn } from "@/utils/cn";
 /**
  * EDITORIAL PLATE
  * ---------------------------------------------------------------------------
- * The masthead block that anchors the report's opening spread and the foot of
- * the navigation — the place a printed annual report would set a photograph.
+ * The brand block that anchors a reporting page's masthead and the foot of the
+ * navigation — the place a printed annual report sets its cover mark.
  *
- * It is drawn, not photographed: flat bands of theme tokens, no gradient, no
- * raster asset and no third-party imagery to license or fail to load. Because
- * it is built from the same tokens as everything else, it re-tones with the
- * theme rather than sitting on the page as a foreign object — forest and stone
- * in Sand, charcoal and bronze in Obsidian.
+ * It is drawn, not photographed: a ruled field and a concentric aperture, in
+ * flat theme tokens with no gradient and no raster asset. The motif is chosen
+ * to read as a printed mark rather than as an illustration — engraved ruling
+ * and a struck circle are the vocabulary of a share certificate or a report
+ * cover, and both re-tone with the theme rather than sitting on the page as a
+ * foreign object.
  *
- * It always carries content. A plate with nothing to say is decoration; a plate
- * carrying the reporting context is the cover of the pack.
+ * TO REPLACE WITH LICENSED PHOTOGRAPHY: pass `imageSrc` (and `imageAlt`). The
+ * drawn mark is the fallback, the caption band and every consumer stay exactly
+ * as they are, and no other component needs to change.
  */
 
 interface EditorialPlateProps {
   children?: ReactNode;
   className?: string;
-  /** Where the overlaid content sits within the plate. */
+  /** Where the caption band sits within the plate. */
   align?: "top" | "bottom";
+  /** Brand photography, when the client has supplied some. */
+  imageSrc?: string;
+  imageAlt?: string;
 }
 
-export function EditorialPlate({ children, className, align = "top" }: EditorialPlateProps) {
-  return (
-    <div className={cn("relative overflow-hidden bg-inset min-w-0", className)}>
-      <svg
-        aria-hidden
-        viewBox="0 0 600 400"
-        preserveAspectRatio="xMidYMid slice"
-        className="absolute inset-0 w-full h-full"
-      >
-        {/* Contour rules — the register marks of a printed plate. */}
-        <g stroke="var(--border-default)" strokeWidth="1" opacity="0.5">
-          <line x1="0" y1="54" x2="600" y2="54" />
-          <line x1="0" y1="86" x2="430" y2="86" />
-          <line x1="0" y1="118" x2="600" y2="118" />
-          <line x1="0" y1="150" x2="360" y2="150" />
-        </g>
-        <path
-          d="M0,238 L90,168 L150,202 L240,126 L330,192 L420,142 L510,198 L600,156 L600,400 L0,400 Z"
-          fill="var(--fill-muted-strong)"
-        />
-        <path
-          d="M0,282 L120,214 L200,258 L300,186 L390,248 L480,198 L600,264 L600,400 L0,400 Z"
-          fill="var(--series-3)"
-          opacity="0.85"
-        />
-        <path
-          d="M0,330 L100,276 L190,318 L290,258 L380,310 L470,270 L600,322 L600,400 L0,400 Z"
-          fill="var(--plate-ink)"
-        />
-      </svg>
+/** Concentric strokes of the aperture, outermost first. */
+const APERTURE = [
+  { r: 196, opacity: 0.16 },
+  { r: 154, opacity: 0.26 },
+  { r: 112, opacity: 0.42 },
+];
 
-      {/* Overlaid content sits on a solid band of the accent, never as light
-          text washed over the artwork: a plate that cannot be read is a
-          picture, and this one is carrying the reporting context. */}
-      {children && (
-        <div
-          className={cn(
-            "relative h-full flex flex-col",
-            align === "bottom" ? "justify-end" : "justify-start",
-          )}
-        >
-          <div
-            className="px-4 py-3 border-t-2 border-t-accent-warm"
-            style={{ backgroundColor: "var(--plate-ink)", color: "var(--plate-ink-on)" }}
+/** The ruled field behind the mark, as y positions in the 600x400 viewBox. */
+const RULES = [36, 62, 88, 114, 140, 166, 192, 218, 244, 270];
+
+export function EditorialPlate({
+  children, className, align = "bottom", imageSrc, imageAlt = "",
+}: EditorialPlateProps) {
+  const caption = children && (
+    <div
+      className="px-4 py-3 border-t-2 border-t-accent-warm"
+      style={{ backgroundColor: "var(--plate-ink)", color: "var(--plate-ink-on)" }}
+    >
+      {children}
+    </div>
+  );
+
+  return (
+    <div
+      className={cn("flex flex-col overflow-hidden min-w-0", className)}
+      style={{ backgroundColor: "var(--plate-ground)" }}
+    >
+      {align === "top" && caption}
+
+      <div className="relative flex-1 min-h-0">
+        {imageSrc ? (
+          <img src={imageSrc} alt={imageAlt} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <svg
+            aria-hidden
+            viewBox="0 0 600 400"
+            preserveAspectRatio="xMidYMid slice"
+            className="absolute inset-0 w-full h-full"
           >
-            {children}
-          </div>
-        </div>
-      )}
+            {/* Engraved ruling: the ground of a printed plate. */}
+            <g stroke="var(--plate-ink)" strokeWidth="1" opacity="0.14">
+              {RULES.map((y) => (
+                <line key={y} x1="0" y1={y} x2="600" y2={y} />
+              ))}
+            </g>
+
+            {/* The aperture, struck off the lower-right so it reads as a mark
+                rather than as a centred target. */}
+            <g fill="none" stroke="var(--plate-ink)" strokeWidth="1.25">
+              {APERTURE.map((ring) => (
+                <circle key={ring.r} cx="452" cy="304" r={ring.r} opacity={ring.opacity} />
+              ))}
+            </g>
+            <circle cx="452" cy="304" r="70" fill="var(--plate-ink)" opacity="0.9" />
+            <circle cx="452" cy="304" r="70" fill="none" stroke="var(--accent-warm)" strokeWidth="1.5" />
+
+            {/* The baseline the mark stands on, running into the caption band. */}
+            <rect x="0" y="356" width="600" height="44" fill="var(--plate-ink)" />
+          </svg>
+        )}
+      </div>
+
+      {align === "bottom" && caption}
     </div>
   );
 }

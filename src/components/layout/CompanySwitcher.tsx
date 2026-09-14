@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useReportingDataController } from "@/app/providers/ReportingDataProvider";
 import { Select } from "@/components/ui/Select";
+import { companyConfig } from "@/config/company";
 
 /**
  * COMPANY SWITCHER
@@ -15,7 +16,7 @@ export function CompanySwitcher() {
   const [busy, setBusy] = useState(false);
 
   const options = [
-    { value: "demo", label: "Northpoint Demo" },
+    { value: "demo", label: `${companyConfig.companyName} Demo` },
     ...companies
       .filter((company) => company.activatedDataset && company.activationSchemaVersion === 1)
       .map((company) => ({

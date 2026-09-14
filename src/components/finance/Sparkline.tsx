@@ -18,13 +18,14 @@ interface SparklineProps {
   stroke?: string;
   /** Accessible description; the card supplies the metric name. */
   title?: string;
+  className?: string;
 }
 
 export function Sparkline({
-  values, width = 84, height = 26, stroke = "var(--series-2)", title,
+  values, width = 84, height = 26, stroke = "var(--series-2)", title, className,
 }: SparklineProps) {
   if (values.length < 2) {
-    return <div style={{ width, height }} aria-hidden />;
+    return <div style={{ width, height }} aria-hidden className={className} />;
   }
 
   const min = Math.min(...values);
@@ -47,7 +48,8 @@ export function Sparkline({
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={title ? `${title} trend, last ${values.length} periods` : undefined}
-      className="overflow-visible"
+      preserveAspectRatio="none"
+      className={className ?? "overflow-visible"}
     >
       <path
         d={line}
@@ -56,6 +58,9 @@ export function Sparkline({
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        // The svg may be stretched to a column's width; the hairline must not
+        // stretch with it.
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );

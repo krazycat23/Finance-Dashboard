@@ -62,9 +62,12 @@
   --accent-warm: #a9772f; /* subtle warm accent — brass */
   --accent-warm-soft: #f2e7d2;
 
-  /* Editorial plate: the ink a caption is set on. Dark in BOTH themes — the
-     accent cannot serve here, because Obsidian's accent is a light bronze and
-     a caption set on it would be unreadable. */
+  /* Editorial plate. Three values, because the plate is a printed object with
+     its own stock: a ground, the ink struck on it, and the colour a caption
+     takes on that ink. The ink is dark in BOTH themes — the accent cannot
+     serve here, because Obsidian's accent is a light bronze and a caption set
+     on it would be unreadable. */
+  --plate-ground: #e7ddc7;
   --plate-ink: #17362a;
   --plate-ink-on: #f4efe4;
   --focus-ring: #17362a;
@@ -163,7 +166,8 @@
   --accent-warm: #c08a4a;
   --accent-warm-soft: #2a2118;
 
-  --plate-ink: #23201b;
+  --plate-ground: #2b2620;
+  --plate-ink: #15130f;
   --plate-ink-on: #efe7d9;
   --focus-ring: #c08a4a;
 

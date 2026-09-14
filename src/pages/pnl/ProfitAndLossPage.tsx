@@ -10,13 +10,12 @@ import { KpiBand } from "@/components/finance/KpiBand";
 import { Sparkline } from "@/components/finance/Sparkline";
 import { VarianceValue } from "@/components/finance/VarianceValue";
 import { TrendChart } from "@/components/charts/TrendChart";
-import { CompositionChart, type CompositionSlice } from "@/components/charts/CompositionChart";
 import { StatementTable } from "@/components/tables/StatementTable";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import {
   periodsForBasis, selectCostComposition, selectEntityPerformance, selectInsights,
   selectKpis, selectMetricSeries, selectProfitAndLoss, selectTopVariances,
-  type EntityPerformance, type VarianceItem,
+  type CostCategoryTotal, type EntityPerformance, type VarianceItem,
 } from "@/domain/selectors";
 import { formatCurrency, formatNumber, formatPercentage } from "@/utils/format";
 import { cn } from "@/utils/cn";
@@ -84,18 +83,6 @@ function DemoProfitAndLossPage() {
     const periods = periodsForBasis("R12", selection.periodId);
     return selectMetricSeries(measure, periods, selection.entityId);
   }, [selection, measure]);
-
-  const costSlices = useMemo<CompositionSlice[]>(
-    () =>
-      costs.map((cost) => ({
-        id: cost.id,
-        label: cost.name,
-        value: cost.actual,
-        comparison: formatCurrency(cost.variance, { showSign: true, parentheses: false }),
-        comparisonTone: cost.variance >= 0 ? "positive" : "negative",
-      })),
-    [costs],
-  );
 
   const measureLabel =
     TREND_MEASURES.find((option) => option.value === measure)?.label ?? "EBITDA";
@@ -201,13 +188,7 @@ function DemoProfitAndLossPage() {
             meta={`${formatCurrency(costs.reduce((sum, cost) => sum + cost.actual, 0))} total`}
             description="Grouped by the cost category declared on the chart of accounts."
           >
-            <CompositionChart
-              slices={costSlices}
-              mode="sequential"
-              surface="canvas"
-              comparisonLabel="vs Budget"
-              height={218}
-            />
+            <CostCompositionList rows={costs} />
           </Section>
         </SectionRow>
 
@@ -234,28 +215,57 @@ function entityLabel(entities: EntityPerformance[], entityId: string): string {
  * VARIANCE DRIVERS
  * ---------------------------------------------------------------------------
  * The statement lines that moved furthest from plan, ranked by magnitude. The
- * bar is a second reading of the figure beside it, and favourable/adverse is
- * carried by the word as well as the colour.
+ * section has one job — answer "what moved the P&L most?" — so the rows are
+ * deliberately unequal:
+ *
+ *   the two largest    carried on weight, at full bar strength
+ *   the rest           read against them
+ *   immaterial         set back, with no bar at all, because a bar two pixels
+ *                      long is noise pretending to be a finding
+ *
+ * Materiality is measured against the largest movement on the page, so it
+ * scales with the company rather than against a hard-coded threshold.
  */
+const MATERIAL_SHARE = 0.05;
+
 function VarianceDriverTable({ items }: { items: VarianceItem[] }) {
   const max = Math.max(...items.map((item) => Math.abs(item.variance)), 0);
+  const material = (row: VarianceItem) => max > 0 && Math.abs(row.variance) >= max * MATERIAL_SHARE;
+
+  const figure = (row: VarianceItem) =>
+    cn(
+      "tnum",
+      !material(row) ? "text-tertiary"
+        : row.variance >= 0 ? "text-positive" : "text-negative",
+    );
 
   const columns: Column<VarianceItem>[] = [
     {
       id: "line",
       header: "Line",
       align: "left",
-      width: "32%",
-      render: (row) => <span className="text-[12.5px] text-primary">{row.label}</span>,
+      width: "38%",
+      render: (row, index) => (
+        <span
+          className={cn(
+            "truncate",
+            !material(row) ? "text-[12.5px] text-tertiary"
+              : index < 2 ? "text-[13px] font-semibold text-primary"
+              : "text-[12.5px] text-primary",
+          )}
+        >
+          {row.label}
+        </span>
+      ),
     },
     {
       id: "variance",
       header: "Variance",
       align: "right",
-      width: "18%",
+      width: "17%",
       groupStart: true,
       render: (row) => (
-        <span className={row.variance >= 0 ? "text-positive" : "text-negative"}>
+        <span className={figure(row)}>
           {formatNumber(row.variance, {
             scale: "thousands", showScaleSuffix: false, precision: 0, showSign: true,
           })}
@@ -271,7 +281,7 @@ function VarianceDriverTable({ items }: { items: VarianceItem[] }) {
         row.budget === 0 ? (
           <span className="text-tertiary">—</span>
         ) : (
-          <span className={row.variance >= 0 ? "text-positive" : "text-negative"}>
+          <span className={figure(row)}>
             {formatPercentage(row.variance / Math.abs(row.budget), { showSign: true })}
           </span>
         ),
@@ -281,21 +291,31 @@ function VarianceDriverTable({ items }: { items: VarianceItem[] }) {
       // the figure, and the word carries the favourability without relying on
       // the colour of either.
       id: "bar",
-      header: "Favourability",
+      header: "Impact",
       align: "left",
-      width: "34%",
+      width: "26%",
       groupStart: true,
+      // Stacked rather than side by side: at this column width a bar and a word
+      // on one line force the table to scroll inside its own section, and a
+      // table that scrolls to show its last column has no last column.
       render: (row) => (
-        <div className="flex items-center gap-3">
-          <Meter
-            value={row.variance}
-            max={max}
-            tone={row.variance >= 0 ? "positive" : "negative"}
-            className="flex-1 max-w-[104px]"
-          />
-          <span className="type-caption whitespace-nowrap w-[74px] shrink-0">
-            {row.variance === 0 ? "—" : row.variance > 0 ? "Favourable" : "Adverse"}
+        <div className="flex flex-col gap-[5px] py-[1px]">
+          <span
+            className={cn(
+              "type-caption whitespace-nowrap",
+              material(row) && "font-semibold",
+            )}
+          >
+            {!material(row) ? "Immaterial" : row.variance > 0 ? "Favourable" : "Adverse"}
           </span>
+          {material(row) && (
+            <Meter
+              value={row.variance}
+              max={max}
+              tone={row.variance >= 0 ? "positive" : "negative"}
+              className="w-[78px]"
+            />
+          )}
         </div>
       ),
     },
@@ -306,7 +326,7 @@ function VarianceDriverTable({ items }: { items: VarianceItem[] }) {
       columns={columns}
       rows={items}
       rowKey={(row) => row.label}
-      minWidth={470}
+      minWidth={380}
       empty="No budget comparison is available for this selection."
     />
   );
@@ -315,10 +335,14 @@ function VarianceDriverTable({ items }: { items: VarianceItem[] }) {
 /**
  * MARGIN RAIL
  * ---------------------------------------------------------------------------
- * Margins read as a rail of ratios rather than as KPI cards: the figure, both
- * comparatives, and the trailing twelve months drawn beneath. Only margins the
- * metric registry defines appear, so unit and favourability come from the same
- * place as everywhere else in the product.
+ * Margins read as a rail of ratios rather than as KPI cards: the figure at
+ * display size, both comparatives named in full, and the trailing twelve
+ * months drawn across the width beneath it.
+ *
+ * Only margins the metric registry defines appear, so unit, precision and
+ * favourability come from the same place as everywhere else in the product.
+ * A ratio invented at the page level would be the one figure on the page the
+ * rest of the product could contradict.
  */
 function MarginRail({ data }: { data: ReturnType<typeof selectKpis> }) {
   return (
@@ -326,16 +350,18 @@ function MarginRail({ data }: { data: ReturnType<typeof selectKpis> }) {
       {data.map((datum) => (
         <div
           key={datum.metric.id}
-          className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 items-end py-5 border-t border-subtle first:border-t-0 first:pt-0"
+          className="py-6 border-t border-subtle first:border-t-0 first:pt-0 last:pb-0"
         >
-          <div className="min-w-0">
-            <div className="type-label">{datum.metric.shortName ?? datum.metric.name}</div>
-            <div className="type-kpi type-kpi-sm mt-2.5">
-              {formatPercentage(datum.value)}
-            </div>
-            <div className="flex flex-col gap-[2px] mt-2.5">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="type-label">{datum.metric.name}</span>
+            <span className="type-caption">Trailing 12 months</span>
+          </div>
+
+          <div className="flex items-end justify-between gap-6 mt-3">
+            <span className="type-kpi">{formatPercentage(datum.value)}</span>
+            <div className="flex flex-col items-end gap-[3px] pb-1.5">
               {datum.variance ? (
-                <VarianceValue variance={datum.variance} label={datum.comparisonLabel} size="sm">
+                <VarianceValue variance={datum.variance} label={datum.comparisonLabel} size="md">
                   {formatPercentage(datum.variance.absolute, { showSign: true })}
                 </VarianceValue>
               ) : (
@@ -345,7 +371,7 @@ function MarginRail({ data }: { data: ReturnType<typeof selectKpis> }) {
                 <VarianceValue
                   variance={datum.secondary.variance}
                   label={datum.secondary.label}
-                  size="xs"
+                  size="sm"
                   showGlyph={false}
                 >
                   {formatPercentage(datum.secondary.variance.absolute, { showSign: true })}
@@ -353,8 +379,20 @@ function MarginRail({ data }: { data: ReturnType<typeof selectKpis> }) {
               )}
             </div>
           </div>
+
+          {/* The series runs the full width of the column: a margin is read as
+              a direction of travel, and a thumbnail sparkline hides it. */}
           {datum.series.length > 1 && (
-            <Sparkline values={datum.series} title={datum.metric.name} width={132} height={34} />
+            <div className="mt-5 border-t border-subtle pt-4">
+              <Sparkline
+                values={datum.series}
+                title={datum.metric.name}
+                width={420}
+                height={54}
+                stroke="var(--series-1)"
+                className="w-full"
+              />
+            </div>
           )}
         </div>
       ))}
@@ -417,10 +455,16 @@ function EntityContributionTable({ rows }: { rows: EntityPerformance[] }) {
       header: "Share of group",
       align: "right",
       width: "20%",
-      render: (row) => (
+      render: (row, index) => (
         <div className="flex flex-col items-end gap-[5px]">
-          <span>{total === 0 ? "—" : formatPercentage(row.ebitda / total)}</span>
-          <Meter value={row.ebitda} max={max} className="w-full max-w-[140px]" />
+          <span className={index === 0 ? "font-semibold" : undefined}>
+            {total === 0 ? "—" : formatPercentage(row.ebitda / total)}
+          </span>
+          <Meter
+            value={row.ebitda}
+            max={max}
+            className={cn("w-full max-w-[140px]", index > 0 && "opacity-70")}
+          />
         </div>
       ),
     },
@@ -463,5 +507,81 @@ function EntityContributionTable({ rows }: { rows: EntityPerformance[] }) {
       minWidth={760}
       empty="No reporting entities are defined for this selection."
     />
+  );
+}
+
+/**
+ * OPERATING COST COMPOSITION
+ * ---------------------------------------------------------------------------
+ * Ranked bars rather than a ring. A cost base is read as an ordered list —
+ * which category is biggest, by how much, and whether it is over plan — and a
+ * donut answers none of those without the reader translating angles into
+ * order. The bar IS the ranking, and the figures sit on the same line as the
+ * bar that restates them.
+ *
+ * The categories come from the cost category declared on the chart of
+ * accounts, so a client with different categories gets a different list with
+ * no code change.
+ */
+function CostCompositionList({ rows }: { rows: CostCategoryTotal[] }) {
+  const ranked = [...rows].sort((a, b) => b.actual - a.actual);
+  const max = Math.max(...ranked.map((row) => row.actual), 0);
+
+  return (
+    <ul className="flex flex-col">
+      {ranked.map((row, index) => {
+        const leader = index === 0;
+        return (
+          <li
+            key={row.id}
+            className="py-3 border-b border-subtle last:border-b-0 first:pt-0"
+          >
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="flex items-baseline gap-3 min-w-0">
+                <span aria-hidden className="type-section-number w-[14px] shrink-0">
+                  {index + 1}
+                </span>
+                <span
+                  className={cn(
+                    "truncate text-primary",
+                    leader ? "text-[13px] font-semibold" : "text-[12.5px]",
+                  )}
+                >
+                  {row.name}
+                </span>
+              </span>
+
+              <span className="flex items-baseline gap-5 shrink-0 tnum">
+                <span className="type-caption w-[46px] text-right">
+                  {formatPercentage(row.share)}
+                </span>
+                <span
+                  className={cn(
+                    "text-right w-[68px]",
+                    leader ? "text-[13px] font-semibold text-primary" : "text-[12.5px] text-primary",
+                  )}
+                >
+                  {formatCurrency(row.actual)}
+                </span>
+                <span
+                  className={cn(
+                    "text-[11.5px] font-medium w-[70px] text-right",
+                    row.variance >= 0 ? "text-positive" : "text-negative",
+                  )}
+                >
+                  {formatCurrency(row.variance, { showSign: true, parentheses: false })}
+                </span>
+              </span>
+            </div>
+
+            <Meter
+              value={row.actual}
+              max={max}
+              className={cn("mt-2.5", !leader && "opacity-75")}
+            />
+          </li>
+        );
+      })}
+    </ul>
   );
 }

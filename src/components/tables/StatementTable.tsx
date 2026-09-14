@@ -37,14 +37,43 @@ interface StatementTableProps {
 }
 
 /**
- * Subtotals and totals are marked by a rule and by weight, never by a colour
- * wash: a filled row in a statement reads as a status, which it is not.
+ * ROW HIERARCHY
+ * ---------------------------------------------------------------------------
+ * Three ranks, marked by rule, weight and air — never by a colour wash, because
+ * a filled row in a statement reads as a status, which it is not.
+ *
+ *   detail    the lines that make up a result
+ *   subtotal  a result: a rule above, weight, and a little more room
+ *   total     THE result: a rule above and the accountant's double rule below,
+ *             set a size larger so the eye lands on it last and stays
+ *
+ * The rank comes from the statement spec, so the same table gives a P&L its
+ * profit lines and a balance sheet its totals without knowing either.
  */
 const EMPHASIS_CLASS: Record<StatementRow["emphasis"], string> = {
   detail: "",
-  subtotal: "font-semibold border-t border-line",
-  total: "font-semibold border-t border-strong",
+  subtotal: "font-semibold border-t border-line [&>td]:py-[10px]",
+  total: [
+    "font-semibold border-t border-strong",
+    "[&>td]:py-[13px] [&>td]:text-[13.5px]",
+    // The double rule under a final result is the accounting convention, and
+    // it closes the statement without a fill or a box.
+    "[&>td]:border-b-4 [&>td]:border-b-[var(--border-strong)]",
+    "[&>td]:[border-bottom-style:double]",
+  ].join(" "),
 };
+
+/**
+ * A row carrying no information in any scenario — zero actual, no budget and no
+ * comparative. It stays in the statement because the structure requires it, but
+ * it is set back so it cannot compete with the lines that moved. This is
+ * computed from the row's own figures; no line is named here.
+ */
+function isImmaterial(row: StatementRow): boolean {
+  if (row.isSection || row.emphasis !== "detail") return false;
+  const absent = (value: number | undefined) => value === undefined || value === 0;
+  return absent(row.actual) && absent(row.budget) && absent(row.priorYear);
+}
 
 export function StatementTable({
   rows, actualLabel, budgetLabel = "Budget", budgetSubLabel,
@@ -104,10 +133,14 @@ export function StatementTable({
     render: (row) => (
       <span
         className={cn(
-          row.isSection &&
-            "eyebrow block pt-2.5 pb-0.5",
+          row.isSection && "eyebrow block pt-2.5 pb-0.5",
           !row.isSection && row.emphasis === "detail" && "text-secondary",
-          !row.isSection && row.emphasis !== "detail" && "text-primary",
+          !row.isSection && row.emphasis === "subtotal" && "text-primary",
+          // The final result is set in the display serif: it is the sentence
+          // the whole statement has been building towards.
+          !row.isSection && row.emphasis === "total" &&
+            "text-primary font-serif text-[15px] tracking-[-0.01em]",
+          isImmaterial(row) && "text-tertiary",
         )}
         style={!row.isSection && row.depth ? { paddingLeft: row.depth * 12 } : undefined}
       >
@@ -184,6 +217,7 @@ export function StatementTable({
         cn(
           row.isSection && "hover:bg-transparent",
           !row.isSection && EMPHASIS_CLASS[row.emphasis],
+          isImmaterial(row) && "[&>td]:text-tertiary",
         )
       }
       className={className}

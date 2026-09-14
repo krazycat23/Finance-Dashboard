@@ -1,10 +1,12 @@
 import { cn } from "@/utils/cn";
 
 /**
- * A restrained tab control used for in-section view switching (Revenue / Gross
- * Profit / EBITDA). Deliberately small, square and quiet: it is a control, not
- * a feature. The selected segment carries the theme accent — forest in Sand,
- * bronze in Obsidian — so the active measure is unmistakable in both.
+ * A restrained tab control used for in-section view switching. Deliberately
+ * small, square and quiet: it is a control, not a feature. The selected
+ * segment carries the theme accent — forest in Sand, bronze in Obsidian — so
+ * the active option is unmistakable in both.
+ *
+ * It knows nothing about what it is switching; the options are the caller's.
  */
 
 export interface SegmentOption<T extends string> {
