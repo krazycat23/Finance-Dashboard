@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
+import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { useFilters } from "@/app/providers/FilterProvider";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PageSections } from "@/components/layout/AppShell";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
+import { Masthead } from "@/components/layout/Masthead";
+import { Section, SectionRow } from "@/components/layout/Section";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { KpiCard } from "@/components/finance/KpiCard";
-import { VarianceValue } from "@/components/finance/VarianceValue";
-import { RankedBarList, type RankedItem } from "@/components/finance/RankedBarList";
+import { Meter } from "@/components/ui/Meter";
+import { KpiBand } from "@/components/finance/KpiBand";
+import { NumberedInsightList } from "@/components/finance/InsightList";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
 import { ColumnChart } from "@/components/charts/ColumnChart";
 import { DataTable, type Column } from "@/components/tables/DataTable";
@@ -15,344 +15,422 @@ import { getMetric } from "@/domain/metrics";
 import type { KpiDatum } from "@/domain/selectors/kpi";
 import {
   selectBudgetBridge, selectComparableBudget, selectCostComposition,
-  selectEbitdaBridge, selectEntityPerformance, selectFullYearOutlook, selectLines,
-  selectPriceVolumeMix, selectTopVariances, type CostCategoryTotal,
+  selectEbitdaBridge, selectEntityPerformance, selectInsights, selectLines,
+  selectPriceVolumeMix, type BridgeStep, type CostCategoryTotal,
   type EntityPerformance,
 } from "@/domain/selectors";
 import { formatCurrency, formatPercentage } from "@/utils/format";
+import { cn } from "@/utils/cn";
 
 /**
- * VARIANCE & DRIVER ANALYSIS
+ * VARIANCE ANALYSIS — NORTH HOUSE
  * ---------------------------------------------------------------------------
- * Every variance on this page is SIGNED SO THAT POSITIVE IS FAVOURABLE,
- * whatever the line. An overspend on costs is negative; an underspend is
- * positive. Without that convention a variance page forces the reader to work
- * out the sign convention line by line, which is where mistakes come from.
+ * The diagnostic page: why are we ahead or behind?
+ *
+ * Every variance here is SIGNED SO THAT POSITIVE IS FAVOURABLE, whatever the
+ * line. An overspend on costs is negative; an underspend is positive. Without
+ * that convention a variance page forces the reader to work out the sign line
+ * by line, which is where mistakes come from.
  *
  * The budget comparison is restricted to closed periods — comparing nine months
  * of actual against a twelve-month plan is the most common variance error in
  * management reporting, and the selector layer prevents it.
+ *
+ *   01          the bridge, full measure
+ *   02 | 03     the drivers behind it, against the commentary
+ *   04          which entities moved
+ *   05 | 06     the revenue decomposition, and the cost base
  */
 
-type BridgeBasis = "budget" | "priorYear";
+/** The measures whose variance the band reports, in statement order. */
+const VARIANCE_LINES = [
+  { line: "revenue", metricId: "revenue", label: "Revenue variance" },
+  { line: "grossProfit", metricId: "grossProfit", label: "Gross profit variance" },
+  { line: "ebitda", metricId: "ebitda", label: "EBITDA variance" },
+  { line: "netProfit", metricId: "netProfit", label: "Net profit variance" },
+] as const;
+
+const BRIDGE_BASES = [
+  { value: "budget", label: "vs Budget" },
+  { value: "priorYear", label: "vs Last year" },
+] as const;
+type BridgeBasis = (typeof BRIDGE_BASES)[number]["value"];
 
 export function VariancePage() {
-  const { selection, currentPeriod } = useFilters();
+  const dataset = useReportingDataset();
+  const { selection, currentPeriod, basis } = useFilters();
   const [bridgeBasis, setBridgeBasis] = useState<BridgeBasis>("budget");
 
   const lines = useMemo(() => selectLines(selection), [selection]);
   const budget = useMemo(() => selectComparableBudget(selection), [selection]);
+
   // The toggle changes which bridge is built, not just its caption.
   const bridge = useMemo(
-    () =>
-      bridgeBasis === "budget"
-        ? selectBudgetBridge(selection)
-        : selectEbitdaBridge(selection),
+    () => (bridgeBasis === "budget" ? selectBudgetBridge(selection) : selectEbitdaBridge(selection)),
     [selection, bridgeBasis],
   );
   const pvm = useMemo(() => selectPriceVolumeMix(selection), [selection]);
-  const topVariances = useMemo(() => selectTopVariances(selection), [selection]);
   const costs = useMemo(() => selectCostComposition(selection), [selection]);
   const entities = useMemo(() => selectEntityPerformance(selection), [selection]);
-  const outlook = useMemo(() => selectFullYearOutlook(selection, "ebitda"), [selection]);
+  const insights = useMemo(() => selectInsights(selection, "profitability"), [selection]);
 
-  const kpis = useMemo<KpiDatum[]>(() => {
-    const build = (
-      metricId: string,
-      actual: number,
-      comparison: number,
-      inverse = false,
-    ): KpiDatum => {
-      const metric = getMetric(metricId);
-      // Signed favourable-positive: on a cost line the variance is the
-      // UNDERSPEND, so the subtraction is reversed.
-      const value = inverse ? comparison - actual : actual - comparison;
-      return {
-        metric,
-        value,
-        comparison: 0,
-        comparisonLabel: "vs Plan",
-        variance: calculateVariance(value, 0, { favourableDirection: "up" }),
-        series: [],
-      };
-    };
-
-    const recovery = Math.max(0, -outlook.varianceToBudget);
-
-    return [
-      build("revenue", lines.actual.revenue ?? 0, budget.revenue ?? 0),
-      build("grossProfit", lines.actual.grossProfit ?? 0, budget.grossProfit ?? 0),
-      build("operatingCosts", lines.actual.operatingCosts ?? 0, budget.operatingCosts ?? 0, true),
-      build("ebitda", lines.actual.ebitda ?? 0, budget.ebitda ?? 0),
-      {
-        metric: getMetric("forecastChange"),
-        value: outlook.varianceToBudget,
-        comparison: 0,
-        comparisonLabel: "full year vs plan",
-        variance: calculateVariance(outlook.varianceToBudget, 0, { favourableDirection: "up" }),
-        series: [],
-      },
-      {
-        metric: getMetric("recoveryRequired"),
-        value: recovery,
-        comparison: 0,
-        comparisonLabel: `over ${outlook.remainingPeriods} periods`,
-        variance: calculateVariance(recovery, 0, { favourableDirection: "down" }),
-        series: [],
-      },
-    ];
-  }, [lines, budget, outlook]);
-
-  const varianceItems = useMemo<RankedItem[]>(
+  // The variance itself is the figure, and the domain's own variance helper
+  // produces it — the page does not subtract one number from another.
+  const kpis = useMemo<KpiDatum[]>(
     () =>
-      topVariances.map((item) => ({
-        id: item.label,
-        label: item.label,
-        value: item.variance,
-        display: formatCurrency(item.variance, { showSign: true, parentheses: false }),
-        secondary:
-          item.budget === 0
-            ? undefined
-            : formatPercentage(item.variance / Math.abs(item.budget), { showSign: true }),
-        secondaryTone: item.variance >= 0 ? "positive" : "negative",
-      })),
-    [topVariances],
+      VARIANCE_LINES.map(({ line, metricId, label }) => {
+        const metric = getMetric(metricId);
+        const actual = lines.actual[line] ?? 0;
+        const planned = budget[line];
+        const variance = calculateVariance(actual, planned, metric);
+        return {
+          metric: { ...metric, shortName: label },
+          value: variance?.absolute ?? 0,
+          comparison: planned,
+          comparisonLabel: "vs Budget",
+          variance,
+          series: [],
+        };
+      }),
+    [lines, budget],
   );
 
-  const pvmData = useMemo(
-    () =>
-      pvm.map((component) => ({
-        id: component.label,
-        label: component.label,
-        value: component.value,
-      })),
-    [pvm],
-  );
-
-  const costColumns: Column<CostCategoryTotal>[] = [
-    { id: "category", header: "Cost category", align: "left", render: (row) => row.name },
-    { id: "actual", header: "Actual", align: "right", groupStart: true, render: (row) => formatCurrency(row.actual) },
-    { id: "budget", header: "Budget", align: "right", render: (row) => formatCurrency(row.budget) },
-    {
-      id: "variance",
-      header: "Variance",
-      align: "right",
-      render: (row) => {
-        const variance = calculateVariance(row.variance, 0, { favourableDirection: "up" });
-        if (!variance) return "—";
-        return (
-          <VarianceValue variance={variance} size="sm" showGlyph={false}>
-            {formatCurrency(row.variance, { showSign: true, parentheses: false })}
-          </VarianceValue>
-        );
-      },
-    },
-    {
-      id: "variance-pct",
-      header: "Var %",
-      align: "right",
-      render: (row) => {
-        if (row.budget === 0) return "—";
-        const relative = row.variance / row.budget;
-        const variance = calculateVariance(relative, 0, { favourableDirection: "up" });
-        if (!variance) return "—";
-        return (
-          <VarianceValue variance={variance} size="sm" showGlyph={false}>
-            {formatPercentage(relative, { showSign: true })}
-          </VarianceValue>
-        );
-      },
-    },
-    { id: "ly", header: "Last year", align: "right", groupStart: true, render: (row) => formatCurrency(row.priorYear) },
-    { id: "share", header: "Share", align: "right", render: (row) => formatPercentage(row.share) },
-  ];
-
-  const entityColumns: Column<EntityPerformance>[] = [
-    { id: "entity", header: "Business unit", align: "left", render: (row) => row.name },
-    { id: "revenue", header: "Revenue", align: "right", groupStart: true, render: (row) => formatCurrency(row.revenue) },
-    {
-      id: "revenue-growth",
-      header: "vs LY",
-      align: "right",
-      render: (row) => {
-        const variance = calculateVariance(row.revenueGrowth ?? 0, 0, { favourableDirection: "up" });
-        if (row.revenueGrowth === undefined || !variance) return "—";
-        return (
-          <VarianceValue variance={variance} size="sm" showGlyph={false}>
-            {formatPercentage(row.revenueGrowth, { showSign: true })}
-          </VarianceValue>
-        );
-      },
-    },
-    { id: "ebitda", header: "EBITDA", align: "right", groupStart: true, render: (row) => formatCurrency(row.ebitda) },
-    { id: "ebitda-margin", header: "EBITDA %", align: "right", render: (row) => formatPercentage(row.ebitdaMargin) },
-    {
-      id: "ebitda-growth",
-      header: "vs LY",
-      align: "right",
-      render: (row) => {
-        const variance = calculateVariance(row.ebitdaGrowth ?? 0, 0, { favourableDirection: "up" });
-        if (row.ebitdaGrowth === undefined || !variance) return "—";
-        return (
-          <VarianceValue variance={variance} size="sm" showGlyph={false}>
-            {formatPercentage(row.ebitdaGrowth, { showSign: true })}
-          </VarianceValue>
-        );
-      },
-    },
-  ];
-
-  /**
-   * Driver tree: the chain from revenue variance through margin to EBITDA.
-   * Shown as nested rows rather than a graphical tree — at this density a tree
-   * diagram costs space without adding information.
-   */
-  const driverTree = useMemo(() => {
-    const revenueVariance = (lines.actual.revenue ?? 0) - (budget.revenue ?? 0);
-    const cogsVariance = (budget.costOfSales ?? 0) - (lines.actual.costOfSales ?? 0);
-    const gpVariance = (lines.actual.grossProfit ?? 0) - (budget.grossProfit ?? 0);
-    const opexVariance = (budget.operatingCosts ?? 0) - (lines.actual.operatingCosts ?? 0);
-    const ebitdaVariance = (lines.actual.ebitda ?? 0) - (budget.ebitda ?? 0);
-
-    return [
-      { id: "revenue", label: "Revenue", depth: 1, value: revenueVariance },
-      { id: "cogs", label: "Cost of sales", depth: 1, value: cogsVariance },
-      { id: "gp", label: "Gross profit", depth: 0, value: gpVariance, emphasis: true },
-      { id: "opex", label: "Operating costs", depth: 1, value: opexVariance },
-      { id: "ebitda", label: "EBITDA", depth: 0, value: ebitdaVariance, emphasis: true },
-    ];
-  }, [lines, budget]);
+  const basisLabel = bridgeBasis === "budget" ? "budget" : "last year";
 
   return (
     <>
-      <PageHeader
-        eyebrow="Variance Analysis"
-        title="Variance and driver analysis."
-        subtitle="Where performance diverged from plan and from last year, decomposed into the drivers that caused it."
+      <Masthead
+        eyebrow="Variance analysis"
+        titleClassName="max-w-[17ch]"
+        title="Understand the story behind the numbers."
+        standfirst="From variance to action."
+        lede={`${dataset.profile.companyName} · ${basis} ${currentPeriod.label}. Every variance is signed so a positive figure is favourable, including on cost lines.`}
+        commentary={insights[0]?.text}
+        context={[
+          { label: "Period", value: currentPeriod.label },
+          { label: "Basis", value: basis },
+          { label: "Compared", value: "Closed periods" },
+          { label: "Currency", value: dataset.profile.reportingCurrency },
+        ]}
       />
 
-      <PageSections>
-        <div className="grid gap-2.5 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          {kpis.map((datum, index) => (
-            <KpiCard key={`${datum.metric.id}-${index}`} datum={datum} />
-          ))}
-        </div>
+      <div className="mt-9">
+        <KpiBand data={kpis} emphasiseFirst />
+      </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-5">
-          <Panel flush>
-            <PanelHeader
-              title={bridgeBasis === "budget" ? "Budget to actual bridge" : "Year-on-year EBITDA bridge"}
-              meta={`EBITDA · ${selection.basis} ${currentPeriod.label}`}
-              description={
-                bridgeBasis === "budget"
-                  ? "Budget restricted to closed periods, so the comparison is like for like."
-                  : "Movement against the prior-year comparative, decomposed into its drivers."
-              }
-              actions={
-                <SegmentedControl
-                  aria-label="Bridge basis"
-                  value={bridgeBasis}
-                  onChange={setBridgeBasis}
-                  options={[
-                    { value: "budget", label: "vs Plan" },
-                    { value: "priorYear", label: "vs LY" },
-                  ]}
-                />
-              }
+      <div className="mt-10 flex flex-col gap-10">
+        {/* 01 — the bridge --------------------------------------------------- */}
+        <Section
+          number="01"
+          title="Variance waterfall"
+          meta={`EBITDA ${bridgeBasis === "budget" ? "vs budget" : "vs last year"}`}
+          description="Opening and closing columns are levels; the bars between them are the movements the model reports. Nothing is decomposed on this page."
+          actions={
+            <SegmentedControl
+              aria-label="Bridge basis"
+              value={bridgeBasis}
+              onChange={setBridgeBasis}
+              options={BRIDGE_BASES.map((option) => ({ ...option }))}
             />
-            <PanelBody>
-              <WaterfallChart steps={bridge} height={252} />
-            </PanelBody>
-          </Panel>
+          }
+        >
+          <WaterfallChart steps={bridge} height={340} />
+        </Section>
 
-          <Panel flush>
-            <PanelHeader
-              title="Price, volume and mix"
-              meta="Revenue movement vs last year"
-              description="An exact three-way split: the components sum to the revenue movement."
+        {/* 02 | 03 — the drivers, and what they mean -------------------------- */}
+        <SectionRow split="55/45">
+          <Section
+            flushTop
+            number="02"
+            title="Variance by driver"
+            meta={`Against ${basisLabel}`}
+            description="The movements of the bridge above, ranked by contribution to the total."
+          >
+            <DriverContributionTable steps={bridge} />
+          </Section>
+
+          <Section
+            flushTop
+            number="03"
+            title="Commentary"
+            meta="Derived from reported results"
+          >
+            {insights.length > 0 ? (
+              <NumberedInsightList insights={insights} />
+            ) : (
+              <p className="type-body">No movements of note in the reported results.</p>
+            )}
+          </Section>
+        </SectionRow>
+
+        {/* 04 — which entities moved ------------------------------------------ */}
+        <Section
+          number="04"
+          title="Variance by entity"
+          meta="Movement on last year"
+          description="Ranked by the size of the EBITDA movement, whichever way it went. Entities come from the active dataset's own dimension."
+        >
+          <EntityMovementTable rows={entities} />
+        </Section>
+
+        {/* 05 | 06 — revenue decomposition, and the cost base ------------------ */}
+        <SectionRow split="50/50">
+          <Section
+            flushTop
+            number="05"
+            title="Price, volume and mix"
+            meta="Revenue movement on last year"
+            description="An exact three-way split: the components sum precisely to the revenue movement."
+          >
+            <ColumnChart
+              data={pvm.map((component) => ({
+                id: component.label,
+                label: component.label,
+                value: component.value,
+              }))}
+              height={252}
+              divergent
             />
-            <PanelBody>
-              <ColumnChart
-                data={pvmData}
-                height={252}
-                divergent
-                valueLabel="Effect"
-              />
-            </PanelBody>
-          </Panel>
-        </div>
+          </Section>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-5">
-          <Panel flush>
-            <PanelHeader
-              title="Largest variances to plan"
-              meta="Favourable positive"
-            />
-            <PanelBody>
-              <RankedBarList items={varianceItems} />
-            </PanelBody>
-          </Panel>
-
-          <Panel flush>
-            <PanelHeader
-              title="Driver tree"
-              meta="Variance to plan"
-              description="How the revenue and cost variances combine into the EBITDA variance."
-            />
-            <PanelBody>
-              <ul className="flex flex-col">
-                {driverTree.map((node) => {
-                  const variance = calculateVariance(node.value, 0, { favourableDirection: "up" });
-                  return (
-                    <li
-                      key={node.id}
-                      className={`flex items-baseline justify-between gap-4 py-2.5 border-b border-subtle last:border-b-0 ${
-                        node.emphasis ? "font-semibold" : ""
-                      }`}
-                      style={{ paddingLeft: node.depth * 14 }}
-                    >
-                      <span className={node.emphasis ? "text-[12.5px] text-primary" : "text-[12px] text-secondary"}>
-                        {node.label}
-                      </span>
-                      {variance && (
-                        <VarianceValue variance={variance} size="sm">
-                          {formatCurrency(node.value, { showSign: true, parentheses: false })}
-                        </VarianceValue>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </PanelBody>
-          </Panel>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <Panel flush>
-            <PanelHeader title="Operating cost variances" meta={`${selection.basis} ${currentPeriod.label}`} />
-            <PanelBody>
-              <DataTable
-                columns={costColumns}
-                rows={costs}
-                rowKey={(row) => row.id}
-                minWidth={560}
-              />
-            </PanelBody>
-          </Panel>
-
-          <Panel flush>
-            <PanelHeader title="Business unit movements" meta={`${selection.basis} ${currentPeriod.label}`} />
-            <PanelBody>
-              <DataTable
-                columns={entityColumns}
-                rows={entities}
-                rowKey={(row) => row.id}
-                minWidth={560}
-              />
-            </PanelBody>
-          </Panel>
-        </div>
-      </PageSections>
+          <Section
+            flushTop
+            number="06"
+            title="Operating cost variance"
+            meta="By cost category"
+            description="Grouped by the cost category declared on the chart of accounts."
+          >
+            <CostVarianceList rows={costs} />
+          </Section>
+        </SectionRow>
+      </div>
     </>
+  );
+}
+
+/**
+ * DRIVER CONTRIBUTION
+ * ---------------------------------------------------------------------------
+ * The bridge read as a table: each movement, its share of the total movement,
+ * and whether it helped or hurt. Contribution is measured against the total
+ * absolute movement so the shares are comparable when drivers pull in opposite
+ * directions.
+ */
+function DriverContributionTable({ steps }: { steps: BridgeStep[] }) {
+  const deltas = steps.filter((step) => step.kind === "delta");
+  const total = deltas.reduce((sum, step) => sum + Math.abs(step.value), 0);
+  const max = Math.max(...deltas.map((step) => Math.abs(step.value)), 0);
+
+  const columns: Column<BridgeStep>[] = [
+    {
+      id: "driver",
+      header: "Driver",
+      align: "left",
+      width: "30%",
+      render: (row, index) => (
+        <div className="min-w-0">
+          <span
+            className={cn(
+              "truncate text-primary",
+              index === 0 ? "text-[13px] font-semibold" : "text-[12.5px]",
+            )}
+          >
+            {row.label}
+          </span>
+          {row.description && <div className="type-caption mt-0.5">{row.description}</div>}
+        </div>
+      ),
+    },
+    {
+      id: "value",
+      header: "Movement",
+      align: "right",
+      width: "20%",
+      groupStart: true,
+      render: (row) => (
+        <span className={row.value >= 0 ? "text-positive" : "text-negative"}>
+          {formatCurrency(row.value, { showSign: true, parentheses: false })}
+        </span>
+      ),
+    },
+    {
+      id: "share",
+      header: "Contribution",
+      align: "right",
+      width: "16%",
+      render: (row) =>
+        total === 0 ? (
+          <span className="text-tertiary">—</span>
+        ) : (
+          formatPercentage(Math.abs(row.value) / total)
+        ),
+    },
+    {
+      id: "bar",
+      header: "Impact",
+      align: "left",
+      width: "34%",
+      groupStart: true,
+      render: (row) => (
+        <div className="flex flex-col gap-[5px]">
+          <span className="type-caption">{row.value >= 0 ? "Favourable" : "Adverse"}</span>
+          <Meter
+            value={row.value}
+            max={max}
+            tone={row.value >= 0 ? "positive" : "negative"}
+            className="w-[86px]"
+          />
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={[...deltas].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))}
+      rowKey={(row) => row.label}
+      minWidth={420}
+      empty="The bridge reports no movements for this selection."
+    />
+  );
+}
+
+/** Which entities moved, and by how much, ranked by the size of the move. */
+function EntityMovementTable({ rows }: { rows: EntityPerformance[] }) {
+  const ranked = [...rows].sort(
+    (a, b) => Math.abs(b.ebitdaGrowth ?? 0) - Math.abs(a.ebitdaGrowth ?? 0),
+  );
+  const max = Math.max(...ranked.map((row) => Math.abs(row.ebitdaGrowth ?? 0)), 0);
+
+  const movement = (value: number | undefined) =>
+    value === undefined ? (
+      <span className="text-tertiary">—</span>
+    ) : (
+      <span className={cn("font-medium", value >= 0 ? "text-positive" : "text-negative")}>
+        {formatPercentage(value, { showSign: true })}
+      </span>
+    );
+
+  const columns: Column<EntityPerformance>[] = [
+    {
+      id: "entity",
+      header: "Entity",
+      align: "left",
+      width: "22%",
+      render: (row, index) => (
+        <span className="flex items-baseline gap-3 min-w-0">
+          <span aria-hidden className="type-section-number w-[14px] shrink-0">{index + 1}</span>
+          <span
+            className={cn(
+              "truncate text-primary",
+              index === 0 ? "text-[13px] font-semibold" : "text-[12.5px]",
+            )}
+          >
+            {row.name}
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: "revenue",
+      header: "Revenue",
+      align: "right",
+      width: "14%",
+      groupStart: true,
+      render: (row) => formatCurrency(row.revenue),
+    },
+    {
+      id: "revenue-growth",
+      header: "Revenue vs LY",
+      align: "right",
+      width: "14%",
+      render: (row) => movement(row.revenueGrowth),
+    },
+    {
+      id: "ebitda",
+      header: "EBITDA",
+      align: "right",
+      width: "14%",
+      groupStart: true,
+      render: (row) => <span className="font-medium">{formatCurrency(row.ebitda)}</span>,
+    },
+    {
+      id: "ebitda-growth",
+      header: "EBITDA vs LY",
+      align: "right",
+      width: "14%",
+      render: (row) => movement(row.ebitdaGrowth),
+    },
+    {
+      id: "impact",
+      header: "Size of move",
+      align: "left",
+      width: "22%",
+      groupStart: true,
+      render: (row) => (
+        <Meter
+          value={row.ebitdaGrowth ?? 0}
+          max={max}
+          tone={(row.ebitdaGrowth ?? 0) >= 0 ? "positive" : "negative"}
+          className="max-w-[150px]"
+        />
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={ranked}
+      rowKey={(row) => row.id}
+      minWidth={820}
+      empty="No reporting entities are defined for this selection."
+    />
+  );
+}
+
+/** Operating cost categories against plan, ranked by the size of the variance. */
+function CostVarianceList({ rows }: { rows: CostCategoryTotal[] }) {
+  const ranked = [...rows].sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
+  const max = Math.max(...ranked.map((row) => Math.abs(row.variance)), 0);
+
+  return (
+    <ul className="flex flex-col">
+      {ranked.map((row, index) => (
+        <li key={row.id} className="py-3 border-b border-subtle last:border-b-0 first:pt-0">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="flex items-baseline gap-3 min-w-0">
+              <span aria-hidden className="type-section-number w-[14px] shrink-0">{index + 1}</span>
+              <span
+                className={cn(
+                  "truncate text-primary",
+                  index === 0 ? "text-[13px] font-semibold" : "text-[12.5px]",
+                )}
+              >
+                {row.name}
+              </span>
+            </span>
+            <span className="flex items-baseline gap-5 shrink-0 tnum">
+              <span className="type-caption w-[66px] text-right">{formatCurrency(row.actual)}</span>
+              <span
+                className={cn(
+                  "text-[12.5px] font-medium w-[70px] text-right",
+                  row.variance >= 0 ? "text-positive" : "text-negative",
+                )}
+              >
+                {formatCurrency(row.variance, { showSign: true, parentheses: false })}
+              </span>
+            </span>
+          </div>
+          <Meter
+            value={row.variance}
+            max={max}
+            tone={row.variance >= 0 ? "positive" : "negative"}
+            className={cn("mt-2.5", index > 0 && "opacity-75")}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }

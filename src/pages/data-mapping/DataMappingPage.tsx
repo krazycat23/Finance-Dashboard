@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import {
   AlertCircle, CheckCircle2, Clock, Info, Link2Off, RefreshCw,
 } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { Masthead } from "@/components/layout/Masthead";
 import { PageSections } from "@/components/layout/AppShell";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -246,10 +246,18 @@ export function DataMappingPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Data Quality, Mapping & Reconciliation"
-        title="Data health, mapping and reconciliation."
-        subtitle="Mapping coverage, reconciliation status and data exceptions. Unmapped members are excluded from every reported total, so they are surfaced here rather than absorbed silently."
+      <Masthead
+        eyebrow="Data quality & mapping"
+        titleClassName="max-w-[18ch]"
+        title="Data & Mapping"
+        standfirst="Source in, reporting out."
+        lede="Mapping coverage, reconciliation status and data exceptions. Unmapped members are excluded from every reported total, so they are surfaced here rather than absorbed silently."
+        context={[
+          { label: "Health", value: health.grade },
+          { label: "Score", value: health.score.toFixed(1) },
+          { label: "Refreshed", value: lastRefresh.toLocaleDateString() },
+          { label: "Checks", value: String(health.components.length) },
+        ]}
       />
 
       <PageSections>
@@ -493,7 +501,7 @@ function StatTile({
   }[tone];
 
   return (
-    <div className="bg-panel border border-subtle rounded-[4px] px-3.5 py-3 flex flex-col gap-1.5">
+    <div className="bg-panel border border-subtle px-3.5 py-3 flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
         <Icon size={12} strokeWidth={1.9} className={`${toneClass} shrink-0`} />
         <span className="text-[11px] text-secondary leading-tight">{label}</span>

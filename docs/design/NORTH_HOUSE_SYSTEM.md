@@ -142,6 +142,30 @@ Three tonal levels create depth. A page must never be one flat field.
 
 ---
 
+## Page patterns
+
+Every reporting page is: **masthead → KPI band → numbered sections**, with the
+sections in varied spreads rather than a repeating stack. No two consecutive
+sections share a shape.
+
+| Page | Shape |
+|---|---|
+| Overview | 01\|02 65/35 · 03\|04 60/40 · 05 · 06 |
+| Sales | 01\|02 65/35 · 03\|04 55/45 · 05 paired · 06 |
+| P&L | 01 statement band · 02\|03 40/60 · 04\|05 40/60 · 06 |
+| Forecast | 01 · 02\|03 55/45 · 04\|05 60/40 · 06 |
+| Variance | 01 · 02\|03 55/45 · 04 · 05\|06 50/50 |
+| Cash Flow | 01 · 02\|03 55/45 · 04 statement band · 05\|06 60/40 |
+| Balance Sheet | 01 statement band · 02\|03 50/50 · 04\|05 60/40 · 06 |
+| KPIs | one section per configured board · focus detail 60/40 |
+| Reports | library table · not-configured list |
+| Settings | 50/50 pairs of ruled label/value lists |
+| Data & Mapping | masthead only — density and workflow win over composition |
+
+A page has **at most one** `StatementBand`: the statement that anchors it.
+
+---
+
 ## What to avoid
 
 - Rounded SaaS cards, floating panels, glassmorphism, gradients of any kind
