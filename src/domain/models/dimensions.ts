@@ -121,6 +121,15 @@ export interface Location extends DimensionBase {
   country?: string;
   /** Store, warehouse, office, online — deliberately free-form. */
   locationType?: string;
+  /**
+   * The location this rolls up to. A store points at its region, so a sales
+   * record carried at store grain still aggregates to a regional view.
+   */
+  parentId?: string;
+  /** Flagship, metro, suburban, outlet — free-form, used for a format cut. */
+  format?: string;
+  /** ISO date the location began trading, where it is known. */
+  openedOn?: string;
 }
 
 export interface Channel extends DimensionBase {

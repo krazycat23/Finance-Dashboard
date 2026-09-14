@@ -1,4 +1,5 @@
 import type { Period, SalesRecord } from "@/domain/models";
+import { stores } from "./dimensions";
 import { createRandom, jitter, round, type Random } from "./random";
 
 /**
@@ -29,6 +30,8 @@ interface Combo {
   upt: number;
   /** False for locations opened or closed mid-comparative (excluded from LFL). */
   comparable: boolean;
+  /** Compound monthly growth specific to this combination, if any. */
+  growthAdj?: number;
 }
 
 /**
@@ -52,6 +55,19 @@ const PRODUCT_MIX: Record<
   kids: { weight: 0.08, marginAdj: -0.045, drift: -0.0029, priceIndex: 0.6 },
 };
 
+/**
+ * Store format moves both the basket and the margin: a flagship trades at
+ * full price on a larger basket, an outlet does the opposite. Without this
+ * every store in a region would be a scaled copy of every other one and a
+ * store ranking would say nothing a regional ranking did not already say.
+ */
+const FORMAT_ATV_INDEX: Record<string, number> = {
+  Flagship: 1.24, Metro: 1.05, Suburban: 0.93, Outlet: 0.71,
+};
+const FORMAT_MARGIN_ADJ: Record<string, number> = {
+  Flagship: 0.028, Metro: 0.009, Suburban: -0.006, Outlet: -0.052,
+};
+
 const AU_REGIONS = ["nsw", "vic", "qld", "sa", "wa"] as const;
 const AU_REGION_WEIGHT: Record<string, number> = {
   nsw: 0.34, vic: 0.27, qld: 0.19, sa: 0.09, wa: 0.11,
@@ -64,31 +80,43 @@ const AU_REGION_WEIGHT: Record<string, number> = {
 function buildCombos(): Combo[] {
   const combos: Combo[] = [];
 
-  // Retail Australia — stores across five regions, plus online.
+  // Retail Australia — the store estate, carried store by store, plus online.
+  // The regional weight is unchanged; it is simply distributed across the
+  // stores that make up the region, so a regional view is a roll-up.
   for (const region of AU_REGIONS) {
-    combos.push({
-      entityId: "retail-au",
-      channelId: "stores",
-      locationId: region,
-      weight: 0.4 * AU_REGION_WEIGHT[region],
-      marginRate: 0.455,
-      atv: 92,
-      upt: 2.1,
-      // Western Australia is treated as non-comparable: a refit programme
-      // means those locations are excluded from like-for-like.
-      comparable: region !== "wa",
-    });
+    for (const store of stores.filter((s) => s.regionId === region)) {
+      combos.push({
+        entityId: "retail-au",
+        channelId: "stores",
+        locationId: store.id,
+        weight: 0.4 * AU_REGION_WEIGHT[region] * store.share,
+        marginRate: 0.455 + FORMAT_MARGIN_ADJ[store.format],
+        atv: 92 * FORMAT_ATV_INDEX[store.format],
+        upt: 2.1,
+        comparable: store.comparable,
+        growthAdj: store.growthAdj,
+      });
+    }
   }
   combos.push({
     entityId: "retail-au", channelId: "online", locationId: "nsw",
     weight: 0.07, marginRate: 0.492, atv: 118, upt: 1.8, comparable: true,
   });
 
-  // Retail New Zealand
-  combos.push({
-    entityId: "retail-nz", channelId: "stores", locationId: "nz",
-    weight: 0.09, marginRate: 0.438, atv: 86, upt: 2.0, comparable: true,
-  });
+  // Retail New Zealand — the same estate treatment.
+  for (const store of stores.filter((s) => s.regionId === "nz")) {
+    combos.push({
+      entityId: "retail-nz",
+      channelId: "stores",
+      locationId: store.id,
+      weight: 0.09 * store.share,
+      marginRate: 0.438 + FORMAT_MARGIN_ADJ[store.format],
+      atv: 86 * FORMAT_ATV_INDEX[store.format],
+      upt: 2.0,
+      comparable: store.comparable,
+      growthAdj: store.growthAdj,
+    });
+  }
   combos.push({
     entityId: "retail-nz", channelId: "online", locationId: "nz",
     weight: 0.025, marginRate: 0.478, atv: 109, upt: 1.7, comparable: true,
@@ -159,6 +187,12 @@ function comboRevenue(
   // the full extent of a mix shift.
   const mixDrift = (1 + productMix.drift * (params.noise > 0.02 ? 1 : 0.6)) ** monthIndex;
 
+  // A store's own trajectory, damped on plan scenarios for the same reason as
+  // category drift: a budget is set on the group's growth, not on each store
+  // out-running or falling behind it.
+  const comboDrift =
+    (1 + (combo.growthAdj ?? 0) * (params.noise > 0.02 ? 1 : 0.35)) ** monthIndex;
+
   return (
     BASE_MONTHLY_REVENUE *
     combo.weight *
@@ -167,6 +201,7 @@ function comboRevenue(
     channelOverlay *
     seasonal *
     mixDrift *
+    comboDrift *
     jitter(rng, params.noise)
   );
 }

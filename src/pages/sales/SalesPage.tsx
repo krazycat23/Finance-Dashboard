@@ -23,6 +23,7 @@ import {
   reportingCapabilities, selectModuleAvailability,
 } from "@/domain/selectors/availability";
 import type { KpiDatum } from "@/domain/selectors/kpi";
+import type { Location } from "@/domain/models";
 import { calculateVariance } from "@/domain/metrics/variance";
 import { getMetric } from "@/domain/metrics";
 import { formatCurrency, formatMetric, formatMetricDelta, formatPercentage } from "@/utils/format";
@@ -65,7 +66,8 @@ type WeekWindow = (typeof WEEK_WINDOWS)[number]["value"];
 
 /** Grains the breakdown selector supports for a "where did it come from" read. */
 const GRAINS = [
-  { value: "locationId", label: "Region" },
+  { value: "regionId", label: "Region" },
+  { value: "storeId", label: "Store" },
   { value: "entityId", label: "Entity" },
 ] as const;
 type Grain = (typeof GRAINS)[number]["value"];
@@ -80,7 +82,7 @@ function DemoSalesPage() {
   const capabilities = reportingCapabilities(dataset);
 
   const [weekWindow, setWeekWindow] = useState<WeekWindow>("26");
-  const [grain, setGrain] = useState<Grain>("locationId");
+  const [grain, setGrain] = useState<Grain>("regionId");
 
   const kpis = useMemo(() => selectKpis(SALES_KPIS, selection), [selection]);
   const ratios = useMemo(() => selectKpis(TRADING_RATIOS, selection), [selection]);
@@ -93,6 +95,22 @@ function DemoSalesPage() {
   const channels = useMemo(() => selectBreakdown(selection, "channelId"), [selection]);
   const products = useMemo(() => selectBreakdown(selection, "productId"), [selection]);
   const members = useMemo(() => selectBreakdown(selection, grain), [selection, grain]);
+
+  // The store estate. Sales for the store channel are carried store by store,
+  // so this is the same fact table read at its own grain — not a second one.
+  const storeRows = useMemo(() => selectBreakdown(selection, "storeId"), [selection]);
+  const storeIndex = useMemo(
+    () => new Map(dataset.dimensions.locations.map((location) => [location.id, location])),
+    [dataset],
+  );
+  const rankedStores = useMemo(
+    () => [...storeRows].sort((a, b) => (b.growth ?? -1) - (a.growth ?? -1)),
+    [storeRows],
+  );
+  const pairedStores = rankedStores.length >= 6;
+  const storeHalf = Math.min(6, Math.floor(rankedStores.length / 2));
+  const bestStores = pairedStores ? rankedStores.slice(0, storeHalf) : rankedStores;
+  const worstStores = pairedStores ? rankedStores.slice(-storeHalf).reverse() : [];
 
   const weekly = useMemo(
     () => (capabilities.hasWeeklySales ? selectWeeklySales(selection, Number(weekWindow)) : []),
@@ -149,7 +167,7 @@ function DemoSalesPage() {
         context={[
           { label: "Period", value: currentPeriod.label },
           { label: "Basis", value: basis },
-          { label: "Channels", value: String(channels.length) },
+          { label: storeRows.length > 0 ? "Stores" : "Channels", value: String(storeRows.length > 0 ? storeRows.length : channels.length) },
           { label: "Currency", value: dataset.profile.reportingCurrency },
         ]}
       />
@@ -248,12 +266,32 @@ function DemoSalesPage() {
           </Section>
         </SectionRow>
 
-        {/* 05 — the two ends of the category ranking, side by side ------------ */}
+        {/* 05 — the estate, best and worst ----------------------------------- */}
+        {storeRows.length > 0 && (
+          <Section
+            number="05"
+            title="Store performance"
+            meta={`${storeRows.length} trading stores`}
+            description="Every store the estate reports, ranked on growth against last year. Stores outside the like-for-like base are marked."
+          >
+            {pairedStores ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-8">
+                <StoreTable rows={bestStores} index={storeIndex} heading="Strongest stores" />
+                <StoreTable rows={worstStores} index={storeIndex} heading="Weakest stores" />
+              </div>
+            ) : (
+              <StoreTable rows={bestStores} index={storeIndex} heading="All trading stores" />
+            )}
+            <StoreFormatRail rows={storeRows} index={storeIndex} />
+          </Section>
+        )}
+
+        {/* 06 — the two ends of the category ranking, side by side ------------ */}
         <Section
-          number="05"
+          number="06"
           title="Category performance"
           meta="Ranked on growth vs last year"
-          description="Ranked on growth against last year. The dataset defines no store grain, so the finest sales dimension it does define is used."
+          description="Ranked on growth against last year, across the categories the dataset defines."
         >
           {paired ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-8">
@@ -265,9 +303,9 @@ function DemoSalesPage() {
           )}
         </Section>
 
-        {/* 06 — the trading weeks themselves ---------------------------------- */}
+        {/* 07 — the trading weeks themselves ---------------------------------- */}
         <Section
-          number="06"
+          number="07"
           title="Recent trading weeks"
           meta={capabilities.hasWeeklySales ? "Last 13 closed weeks" : undefined}
           description="Peaks and troughs of the window are marked, so a scan finds the weeks that moved the period."
@@ -445,6 +483,143 @@ function MemberPerformanceTable({ rows, label }: { rows: DimensionBreakdown[]; l
  * One end of the category ranking. Both ends are the same component, so the
  * strongest and the weakest are read on identical terms.
  */
+/**
+ * STORE TABLE
+ * ---------------------------------------------------------------------------
+ * The estate read store by store. Region and format come from the location
+ * dimension itself, so a dataset whose stores carry neither simply shows
+ * fewer columns of context rather than an invented one.
+ */
+function StoreTable({
+  rows, index, heading,
+}: { rows: DimensionBreakdown[]; index: Map<string, Location>; heading: string }) {
+  const revenueMetric = getMetric("totalSales");
+  const hasFormat = rows.some((row) => index.get(row.id)?.format);
+
+  const columns: Column<DimensionBreakdown>[] = [
+    {
+      id: "name",
+      header: "Store",
+      align: "left",
+      width: hasFormat ? "30%" : "42%",
+      render: (row) => (
+        <span className="text-[12.5px] text-primary">
+          {row.name}
+          {!row.comparable && <span className="type-caption ml-1.5">excl. LFL</span>}
+        </span>
+      ),
+    },
+    {
+      id: "region",
+      header: "Region",
+      align: "left",
+      width: "16%",
+      render: (row) => {
+        const parentId = index.get(row.id)?.parentId;
+        const region = parentId ? index.get(parentId) : undefined;
+        return <span className="text-secondary">{region?.name ?? index.get(row.id)?.region ?? "—"}</span>;
+      },
+    },
+    ...(hasFormat
+      ? [
+          {
+            id: "format",
+            header: "Format",
+            align: "left" as const,
+            width: "14%",
+            render: (row: DimensionBreakdown) => (
+              <span className="text-secondary">{index.get(row.id)?.format ?? "—"}</span>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "revenue",
+      header: "Sales",
+      align: "right",
+      width: "22%",
+      groupStart: true,
+      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
+    },
+    {
+      id: "growth",
+      header: "vs LY",
+      align: "right",
+      width: "18%",
+      render: (row) => {
+        const variance = calculateVariance(row.revenue, row.priorYearRevenue, revenueMetric);
+        if (!variance || row.growth === undefined) return <span className="text-tertiary">—</span>;
+        return (
+          <VarianceValue variance={variance} size="sm" showGlyph={false}>
+            {formatPercentage(row.growth, { showSign: true })}
+          </VarianceValue>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div>
+      <div className="eyebrow mb-3">{heading}</div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        minWidth={460}
+        empty="No stores traded in the reported period."
+      />
+    </div>
+  );
+}
+
+/**
+ * STORE FORMAT RAIL
+ * ---------------------------------------------------------------------------
+ * The estate summarised by the format each store trades in. The formats are
+ * whatever the location dimension carries; nothing here assumes a particular
+ * set of them.
+ */
+function StoreFormatRail({
+  rows, index,
+}: { rows: DimensionBreakdown[]; index: Map<string, Location> }) {
+  const byFormat = new Map<string, { revenue: number; count: number }>();
+  for (const row of rows) {
+    const format = index.get(row.id)?.format;
+    if (!format) continue;
+    const entry = byFormat.get(format) ?? { revenue: 0, count: 0 };
+    entry.revenue += row.revenue;
+    entry.count += 1;
+    byFormat.set(format, entry);
+  }
+  if (byFormat.size === 0) return null;
+
+  const total = [...byFormat.values()].reduce((sum, entry) => sum + entry.revenue, 0);
+  const formats = [...byFormat.entries()].sort((a, b) => b[1].revenue - a[1].revenue);
+
+  return (
+    <div className="mt-8 border-t border-subtle pt-5">
+      <div className="eyebrow">Estate by format</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4 mt-3.5">
+        {formats.map(([format, entry]) => (
+          <div key={format} className="min-w-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12.5px] text-primary truncate">{format}</span>
+              <span className="type-caption tnum">{entry.count}</span>
+            </div>
+            <div className="text-[14px] font-semibold text-primary tnum mt-1">
+              {formatCurrency(entry.revenue)}
+            </div>
+            <Meter value={entry.revenue} max={total} className="mt-2" />
+            <div className="type-caption mt-1.5">
+              {formatPercentage(total ? entry.revenue / total : 0)} of estate sales
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CategoryTable({
   rows, heading, tone,
 }: { rows: DimensionBreakdown[]; heading: string; tone: "positive" | "negative" }) {

@@ -117,7 +117,21 @@ function buildDataset(): ReportingDataset {
       mappingSummaries: [
         { dimension: "GL Accounts", total: 32, mapped: 28, unmapped: 4, review: 0, valueCoverage: 0.965 },
         { dimension: "Products", total: 15, mapped: 12, unmapped: 3, review: 0, valueCoverage: 0.94 },
-        ...["Cost Centres", "Channels", "Locations", "Entities"].map((dimension) => ({ dimension, total: 1, mapped: 1, unmapped: 0, review: 0, valueCoverage: 1 })),
+        // Counted off the dimensions themselves rather than stated, so the
+        // coverage figures move when the structures do.
+        ...[
+          { dimension: "Cost Centres", members: dimensions.costCentres },
+          { dimension: "Channels", members: dimensions.channels },
+          { dimension: "Locations", members: dimensions.locations },
+          { dimension: "Entities", members: dimensions.entities },
+        ].map(({ dimension, members }) => ({
+          dimension,
+          total: members.length,
+          mapped: members.length,
+          unmapped: 0,
+          review: 0,
+          valueCoverage: 1,
+        })),
       ],
       unmappedMembers: [
         { id: "unmapped-account-0", dimension: "accounts", externalId: "6710", name: "Store Refit Amortisation", value: 412_000, suggestedLine: "Depreciation & Amortisation", confidence: 0.94 },

@@ -33,6 +33,91 @@ export const channels: Channel[] = [
   { id: "marketplace", name: "Marketplace", channelType: "indirect", externalId: "CH-MKT", mappingStatus: "mapped" },
 ];
 
+
+/**
+ * THE STORE ESTATE
+ * ---------------------------------------------------------------------------
+ * Stores are locations like any other, distinguished only by `locationType`
+ * and by pointing at their region through `parentId`. Sales for the store
+ * channel are carried at this grain, so a regional view is a roll-up rather
+ * than a separate fact table, and nothing in the selector layer needs to know
+ * that "store" is a special kind of place.
+ *
+ * `share` is the store's portion of its region, and the shares within a region
+ * sum to 1 — the regional weights in the sales generator are unchanged by the
+ * estate being described in more detail.
+ */
+export interface StoreDefinition {
+  id: string;
+  name: string;
+  regionId: string;
+  format: "Flagship" | "Metro" | "Suburban" | "Outlet";
+  share: number;
+  openedOn: string;
+  /** False while a store is outside the like-for-like base. */
+  comparable: boolean;
+  /**
+   * Compound monthly growth specific to this store, on top of the group's.
+   * Without it every store in a region is a scaled copy of every other one
+   * and a store ranking says nothing a regional ranking has not already said.
+   */
+  growthAdj: number;
+}
+
+export const stores: StoreDefinition[] = [
+  { id: "st-syd-cbd", name: "Sydney CBD", regionId: "nsw", format: "Flagship", share: 0.31, openedOn: "2009-03-01", comparable: true, growthAdj: 0.0031 },
+  { id: "st-bondi", name: "Bondi Junction", regionId: "nsw", format: "Metro", share: 0.22, openedOn: "2013-09-01", comparable: true, growthAdj: 0.0048 },
+  { id: "st-parramatta", name: "Parramatta", regionId: "nsw", format: "Suburban", share: 0.19, openedOn: "2016-04-01", comparable: true, growthAdj: -0.0012 },
+  { id: "st-chatswood", name: "Chatswood", regionId: "nsw", format: "Suburban", share: 0.16, openedOn: "2018-10-01", comparable: true, growthAdj: 0.0006 },
+  { id: "st-newcastle", name: "Newcastle", regionId: "nsw", format: "Outlet", share: 0.12, openedOn: "2024-11-01", comparable: false, growthAdj: 0.0072 },
+
+  { id: "st-melb-cbd", name: "Melbourne CBD", regionId: "vic", format: "Flagship", share: 0.34, openedOn: "2010-08-01", comparable: true, growthAdj: 0.0019 },
+  { id: "st-chadstone", name: "Chadstone", regionId: "vic", format: "Metro", share: 0.28, openedOn: "2014-03-01", comparable: true, growthAdj: 0.0037 },
+  { id: "st-richmond", name: "Richmond", regionId: "vic", format: "Suburban", share: 0.22, openedOn: "2017-06-01", comparable: true, growthAdj: -0.0035 },
+  { id: "st-geelong", name: "Geelong", regionId: "vic", format: "Outlet", share: 0.16, openedOn: "2019-02-01", comparable: true, growthAdj: -0.0021 },
+
+  { id: "st-bris-cbd", name: "Brisbane CBD", regionId: "qld", format: "Flagship", share: 0.4, openedOn: "2011-05-01", comparable: true, growthAdj: 0.0009 },
+  { id: "st-gold-coast", name: "Gold Coast", regionId: "qld", format: "Metro", share: 0.33, openedOn: "2015-11-01", comparable: true, growthAdj: 0.0044 },
+  { id: "st-chermside", name: "Chermside", regionId: "qld", format: "Suburban", share: 0.27, openedOn: "2020-09-01", comparable: true, growthAdj: -0.0028 },
+
+  { id: "st-adel-cbd", name: "Adelaide CBD", regionId: "sa", format: "Flagship", share: 0.62, openedOn: "2012-02-01", comparable: true, growthAdj: 0.0015 },
+  { id: "st-marion", name: "Marion", regionId: "sa", format: "Suburban", share: 0.38, openedOn: "2018-03-01", comparable: true, growthAdj: -0.0009 },
+
+  // The Western Australian estate is mid-refit, which is why the region sits
+  // outside the like-for-like base.
+  { id: "st-perth-cbd", name: "Perth CBD", regionId: "wa", format: "Flagship", share: 0.44, openedOn: "2013-07-01", comparable: false, growthAdj: 0.0026 },
+  { id: "st-karrinyup", name: "Karrinyup", regionId: "wa", format: "Metro", share: 0.31, openedOn: "2016-10-01", comparable: false, growthAdj: -0.0046 },
+  { id: "st-joondalup", name: "Joondalup", regionId: "wa", format: "Suburban", share: 0.25, openedOn: "2021-04-01", comparable: false, growthAdj: 0.0011 },
+
+  { id: "st-auckland", name: "Auckland CBD", regionId: "nz", format: "Flagship", share: 0.38, openedOn: "2012-09-01", comparable: true, growthAdj: 0.0034 },
+  { id: "st-sylvia-park", name: "Sylvia Park", regionId: "nz", format: "Metro", share: 0.26, openedOn: "2015-05-01", comparable: true, growthAdj: 0.0002 },
+  { id: "st-wellington", name: "Wellington", regionId: "nz", format: "Suburban", share: 0.21, openedOn: "2017-11-01", comparable: true, growthAdj: -0.0018 },
+  { id: "st-christchurch", name: "Christchurch", regionId: "nz", format: "Suburban", share: 0.15, openedOn: "2022-08-01", comparable: true, growthAdj: 0.0053 },
+];
+
+const REGION_META: Record<string, { region: string; country: string }> = {
+  nsw: { region: "NSW", country: "AU" },
+  vic: { region: "VIC", country: "AU" },
+  qld: { region: "QLD", country: "AU" },
+  sa: { region: "SA", country: "AU" },
+  wa: { region: "WA", country: "AU" },
+  nz: { region: "NZ", country: "NZ" },
+};
+
+function storeLocations(): Location[] {
+  return stores.map((store) => ({
+    id: store.id,
+    name: store.name,
+    region: REGION_META[store.regionId].region,
+    country: REGION_META[store.regionId].country,
+    locationType: "store",
+    parentId: store.regionId,
+    format: store.format,
+    openedOn: store.openedOn,
+    mappingStatus: "mapped" as const,
+  }));
+}
+
 export const locations: Location[] = [
   { id: "nsw", name: "New South Wales", region: "NSW", country: "AU", locationType: "region", mappingStatus: "mapped" },
   { id: "vic", name: "Victoria", region: "VIC", country: "AU", locationType: "region", mappingStatus: "mapped" },
@@ -40,6 +125,7 @@ export const locations: Location[] = [
   { id: "sa", name: "South Australia", region: "SA", country: "AU", locationType: "region", mappingStatus: "mapped" },
   { id: "wa", name: "Western Australia", region: "WA", country: "AU", locationType: "region", mappingStatus: "mapped" },
   { id: "nz", name: "New Zealand", region: "NZ", country: "NZ", locationType: "region", mappingStatus: "mapped" },
+  ...storeLocations(),
 ];
 
 export const products: Product[] = [

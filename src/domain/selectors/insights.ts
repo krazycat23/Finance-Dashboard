@@ -46,7 +46,7 @@ export function selectInsights(
   const priorSales = selectPriorYearSalesTotals(selection);
   const cash = selectCashFlow(selection);
   const channels = selectBreakdown(selection, "channelId");
-  const regions = selectBreakdown(selection, "locationId");
+  const regions = selectBreakdown(selection, "regionId");
 
   const insights: Insight[] = [];
   const push = (id: string, text: string, sentiment: Sentiment) =>

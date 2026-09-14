@@ -12,7 +12,50 @@ import { periodsForBasis, priorYearPeriods, resolveEntityIds } from "./core";
 
 const dataset = getReportingDataset;
 
-export type SalesDimension = "channelId" | "productId" | "locationId" | "entityId";
+/**
+ * Dimensions a sales breakdown can be cut by.
+ *
+ * `channelId`, `productId`, `locationId` and `entityId` are fields on the
+ * fact. `regionId` and `storeId` are derived: sales for the store channel are
+ * carried at store grain, so a store cut is the fact's own location filtered
+ * to stores, and a regional cut follows each location up to its parent. The
+ * fact table stays one grain; the reader gets two levels of it.
+ */
+export type SalesDimension =
+  | "channelId"
+  | "productId"
+  | "locationId"
+  | "entityId"
+  | "regionId"
+  | "storeId";
+
+type DimensionResolver = (record: SalesRecord) => string | undefined;
+
+/**
+ * How each dimension reads a key off a record. Everything downstream — the
+ * breakdown, the heat grid, the prior-year comparative — goes through this,
+ * so a derived dimension behaves exactly like a real one.
+ */
+function resolvers(): Record<SalesDimension, DimensionResolver> {
+  const byId = new Map(dataset().dimensions.locations.map((l) => [l.id, l]));
+  return {
+    channelId: (r) => r.channelId,
+    productId: (r) => r.productId,
+    locationId: (r) => r.locationId,
+    entityId: (r) => r.entityId,
+    // A record already at region grain is its own region.
+    regionId: (r) => {
+      const location = r.locationId ? byId.get(r.locationId) : undefined;
+      return location?.parentId ?? location?.id;
+    },
+    // Only the store estate; online and wholesale sit at region grain and
+    // are deliberately absent from a store ranking rather than shown as zero.
+    storeId: (r) => {
+      const location = r.locationId ? byId.get(r.locationId) : undefined;
+      return location?.locationType === "store" ? location.id : undefined;
+    },
+  };
+}
 
 export interface SalesTotals {
   revenue: number;
@@ -116,6 +159,8 @@ export interface DimensionBreakdown {
   budgetRevenue: number;
   growth?: number;
   marginPoints?: number;
+  /** False when any of the member's records sit outside the like-for-like base. */
+  comparable: boolean;
 }
 
 function nameLookup(): Record<SalesDimension, Map<string, string>> {
@@ -125,6 +170,8 @@ function nameLookup(): Record<SalesDimension, Map<string, string>> {
     productId: new Map(dimensions.products.map((p) => [p.id, p.name])),
     locationId: new Map(dimensions.locations.map((l) => [l.id, l.name])),
     entityId: new Map(dimensions.entities.map((e) => [e.id, e.name])),
+    regionId: new Map(dimensions.locations.map((l) => [l.id, l.name])),
+    storeId: new Map(dimensions.locations.map((l) => [l.id, l.name])),
   };
 }
 
@@ -140,9 +187,10 @@ export function selectBreakdown(
   );
   const records = filterRecords(dataset().salesRecords, periodIds, entityIds);
 
+  const keyOf = resolvers()[dimension];
   const grouped = new Map<string, SalesRecord[]>();
   for (const r of records) {
-    const key = r[dimension];
+    const key = keyOf(r);
     if (!key) continue;
     const list = grouped.get(key);
     if (list) list.push(r);
@@ -166,6 +214,7 @@ export function selectBreakdown(
       share: totalRevenue ? t.revenue / totalRevenue : 0,
       priorYearRevenue: t.priorYearRevenue,
       budgetRevenue: t.budgetRevenue,
+      comparable: group.every((r) => r.comparable !== false),
       growth: t.priorYearRevenue > 0 ? t.revenue / t.priorYearRevenue - 1 : undefined,
       marginPoints: priorMargin,
     });
@@ -230,6 +279,7 @@ export function selectMonthlyByDimension(
     (p) => p.isActual,
   );
   const members = selectBreakdown(selection, dimension);
+  const keyOf = resolvers()[dimension];
 
   return members.map((member) => {
     const monthCells = months.map((period) => {
@@ -237,7 +287,7 @@ export function selectMonthlyByDimension(
         (r) =>
           r.periodId === period.id &&
           entityIds.has(r.entityId) &&
-          r[dimension] === member.id,
+          keyOf(r) === member.id,
       );
       const revenue = rows.reduce((s, r) => s + r.revenue, 0);
       const prior = rows.reduce((s, r) => s + (r.priorYearRevenue ?? 0), 0);
@@ -272,9 +322,10 @@ export function selectPriorYearBreakdown(
   );
   const records = filterRecords(dataset().salesRecords, periodIds, entityIds);
 
+  const keyOf = resolvers()[dimension];
   const grouped = new Map<string, PriorBreakdown>();
   for (const r of records) {
-    const key = r[dimension];
+    const key = keyOf(r);
     if (!key) continue;
     const entry = grouped.get(key) ?? { id: key, revenue: 0, units: 0 };
     entry.revenue += r.revenue;
