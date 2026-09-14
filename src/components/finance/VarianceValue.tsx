@@ -32,6 +32,8 @@ interface VarianceValueProps {
   label?: string;
   size?: "xs" | "sm" | "md";
   showGlyph?: boolean;
+  /** Arrows read as movement in prose; triangles read as a ticker on a rail. */
+  glyph?: "arrow" | "triangle";
   className?: string;
 }
 
@@ -44,12 +46,16 @@ const SIZE_CLASS = {
 const GLYPH_SIZE = { xs: 9, sm: 10, md: 11 } as const;
 
 export function VarianceValue({
-  variance, children, label, size = "sm", showGlyph = true, className,
+  variance, children, label, size = "sm", showGlyph = true, glyph = "arrow", className,
 }: VarianceValueProps) {
   const Icon =
     variance.direction === "up" ? ArrowUp
     : variance.direction === "down" ? ArrowDown
     : Minus;
+  const triangle =
+    variance.direction === "up" ? "\u25B2"
+    : variance.direction === "down" ? "\u25BC"
+    : "\u2013";
 
   return (
     <span
@@ -61,7 +67,11 @@ export function VarianceValue({
       )}
     >
       {showGlyph && (
-        <Icon size={GLYPH_SIZE[size]} strokeWidth={2.75} aria-hidden className="shrink-0" />
+        glyph === "triangle" ? (
+          <span aria-hidden className="shrink-0 text-[0.72em] leading-none">{triangle}</span>
+        ) : (
+          <Icon size={GLYPH_SIZE[size]} strokeWidth={2.75} aria-hidden className="shrink-0" />
+        )
       )}
       <span>{children}</span>
       {label && <span className="text-secondary font-normal">{label}</span>}

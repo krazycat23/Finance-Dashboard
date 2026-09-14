@@ -18,7 +18,7 @@ import { DataTable, type Column } from "./DataTable";
  *    row declares rather than the table inferring
  */
 
-export type StatementColumnSet = "full" | "compact" | "budgetOnly";
+export type StatementColumnSet = "full" | "compact" | "budgetOnly" | "priorOnly";
 
 interface StatementTableProps {
   rows: StatementRow[];
@@ -33,6 +33,12 @@ interface StatementTableProps {
   varianceLabel?: string;
   /** Scale for every figure in the table; statements use one scale throughout. */
   scale?: "units" | "thousands" | "millions";
+  /**
+   * How a result row is marked. "rule" is the accountant's default — weight and
+   * a rule. "band" adds a quiet tonal fill, which a balance sheet earns because
+   * it carries four nested results a reader has to find at a glance.
+   */
+  totalTreatment?: "rule" | "band";
   className?: string;
 }
 
@@ -78,7 +84,7 @@ function isImmaterial(row: StatementRow): boolean {
 export function StatementTable({
   rows, actualLabel, budgetLabel = "Budget", budgetSubLabel,
   priorYearLabel = "Last Year", columnSet = "full", varianceLabel = "Variance",
-  scale = "thousands", className,
+  scale = "thousands", totalTreatment = "rule", className,
 }: StatementTableProps) {
   // Statement bodies carry no currency symbol: the panel caption states the
   // unit once ($'000), and repeating the symbol on every row adds noise to the
@@ -129,7 +135,7 @@ export function StatementTable({
     id: "label",
     header: "",
     align: "left",
-    width: "30%",
+    width: columnSet === "priorOnly" ? "38%" : "30%",
     render: (row) => (
       <span
         className={cn(
@@ -156,10 +162,11 @@ export function StatementTable({
     header: "Actual",
     subHeader: actualLabel,
     align: "right",
+    width: columnSet === "priorOnly" ? "16%" : undefined,
     render: (row) => money(row.actual, row),
   });
 
-  if (columnSet !== "compact") {
+  if (columnSet !== "compact" && columnSet !== "priorOnly") {
     columns.push(
       {
         id: "budget",
@@ -184,25 +191,31 @@ export function StatementTable({
     );
   }
 
-  if (columnSet === "full") {
+  if (columnSet === "full" || columnSet === "priorOnly") {
+    // Against a prior CLOSE the movement is not a year-on-year variance, so the
+    // columns take the caller's own label rather than "vs LY".
+    const priorOnly = columnSet === "priorOnly";
     columns.push(
       {
         id: "prior",
         header: priorYearLabel,
         align: "right",
+        width: priorOnly ? "16%" : undefined,
         groupStart: true,
         render: (row) => money(row.priorYear, row),
       },
       {
         id: "vs-ly",
-        header: "vs LY",
+        header: priorOnly ? varianceLabel : "vs LY",
         align: "right",
+        width: priorOnly ? "15%" : undefined,
         render: (row) => varianceCell(row, row.priorYear, "absolute"),
       },
       {
         id: "vs-ly-pct",
-        header: "vs LY %",
+        header: priorOnly ? `${varianceLabel} %` : "vs LY %",
         align: "right",
+        width: priorOnly ? "15%" : undefined,
         render: (row) => varianceCell(row, row.priorYear, "percent"),
       },
     );
@@ -217,6 +230,10 @@ export function StatementTable({
         cn(
           row.isSection && "hover:bg-transparent",
           !row.isSection && EMPHASIS_CLASS[row.emphasis],
+          // The band is a tonal fill, not a colour: it marks structure, never
+          // a status.
+          totalTreatment === "band" && !row.isSection && row.emphasis !== "detail" &&
+            "bg-inset hover:bg-inset",
           isImmaterial(row) && "[&>td]:text-tertiary",
         )
       }

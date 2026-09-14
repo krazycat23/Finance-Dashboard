@@ -59,6 +59,7 @@ const RESOLVERS: Record<string, Resolver> = {
   inventory: (l) => l.inventory,
   tradeReceivables: (l) => l.tradeReceivables,
   tradePayables: (l) => l.tradePayables,
+  totalAssets: (l) => l.totalAssets,
   netAssets: (l) => (l.totalAssets ?? 0) - (l.totalLiabilities ?? 0),
   netDebt: (l) =>
     (l.borrowingsCurrent ?? 0) + (l.borrowingsNonCurrent ?? 0) +

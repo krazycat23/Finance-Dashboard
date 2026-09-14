@@ -33,7 +33,12 @@ interface MastheadProps {
   /** One sentence of reporting context. */
   lede?: string;
   commentary?: string;
-  commentaryLabel?: string;
+  /** Pass null to run the commentary on with no label and no dividing rule. */
+  commentaryLabel?: string | null;
+  /** A statement page gives its standfirst nearly the weight of the title. */
+  standfirstScale?: "sm" | "lg";
+  /** Landscape sets the plate as a wide strip rather than a tall block. */
+  plateOrientation?: "portrait" | "landscape";
   /** Reporting context, rendered on the plate's caption band. */
   context: MastheadContextEntry[];
   /** Narrows the title measure where a page title is short. */
@@ -43,19 +48,35 @@ interface MastheadProps {
 export function Masthead({
   eyebrow, title, standfirst, lede, commentary,
   commentaryLabel = "Finance commentary", context, titleClassName,
+  standfirstScale = "sm", plateOrientation = "portrait",
 }: MastheadProps) {
+  const landscape = plateOrientation === "landscape";
+
   return (
-    <header className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.95fr)] gap-x-9 gap-y-7">
+    <header
+      className={cn(
+        "grid grid-cols-1 gap-x-9 gap-y-7",
+        landscape
+          ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,0.95fr)_minmax(0,0.7fr)] items-start"
+          : "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.95fr)]",
+      )}
+    >
       <div className="min-w-0">
         <div className="eyebrow">{eyebrow}</div>
         <h1 className={cn("type-display mt-3.5", titleClassName ?? "max-w-[20ch]")}>{title}</h1>
         {standfirst && (
-          <>
-            <p className="font-serif text-[17px] leading-[1.4] text-secondary mt-2.5">
+          standfirstScale === "lg" ? (
+            <p className="font-serif text-[23px] leading-[1.28] tracking-[-0.01em] text-secondary mt-3 max-w-[22ch]">
               {standfirst}
             </p>
-            <div className="w-9 h-px bg-[var(--border-strong)] mt-4" />
-          </>
+          ) : (
+            <>
+              <p className="font-serif text-[17px] leading-[1.4] text-secondary mt-2.5">
+                {standfirst}
+              </p>
+              <div className="w-9 h-px bg-[var(--border-strong)] mt-4" />
+            </>
+          )
         )}
         {lede && <p className="type-body-lead mt-4 max-w-[52ch]">{lede}</p>}
       </div>

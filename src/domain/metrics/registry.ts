@@ -153,6 +153,18 @@ export const metrics: MetricRegistry = Object.fromEntries(
       domain: "workingCapital",
     }),
     define({
+      // The value is produced by the line aggregation already (core.ts derives
+      // it from current plus non-current assets) and printed by the balance
+      // sheet. This entry only gives it a name, a unit and a favourable
+      // direction so the KPI layer can present it like any other measure.
+      id: "totalAssets",
+      name: "Total Assets",
+      format: "currency",
+      favourableDirection: "neutral",
+      aggregation: "last",
+      domain: "workingCapital",
+    }),
+    define({
       id: "netAssets",
       name: "Net Assets",
       format: "currency",

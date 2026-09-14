@@ -39,6 +39,12 @@ interface CompositionChartProps {
   /** Ground the chart sits on, so the ring separators match behind it. */
   surface?: "panel" | "canvas";
   /**
+   * "row" sets the ring beside its legend; "stacked" puts it above. A narrow
+   * column cannot hold both side by side — the ring collapses to a sliver and
+   * the centre figure overruns it.
+   */
+  layout?: "row" | "stacked";
+  /**
    * Heading for the comparison column. The caller decides what the comparison
    * IS, so it must also name it — a column headed "vs LY" that is fed a budget
    * variance is a wrong label on a right number.
@@ -48,10 +54,11 @@ interface CompositionChartProps {
 
 export function CompositionChart({
   slices, mode = "categorical", centreValue, centreLabel, height = 200, className,
-  surface = "panel", comparisonLabel = "vs LY",
+  surface = "panel", comparisonLabel = "vs LY", layout = "row",
 }: CompositionChartProps) {
   const tokens = useChartTokens();
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  const hasComparison = slices.some((slice) => slice.comparison !== undefined);
   const categorical = categoricalScale(tokens);
 
   const colourFor = (index: number): string => {
@@ -67,8 +74,18 @@ export function CompositionChart({
   }));
 
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-[minmax(0,170px)_1fr] gap-6 items-center", className)}>
-      <div className="relative" style={{ height }}>
+    <div
+      className={cn(
+        layout === "stacked"
+          ? "flex flex-col gap-5"
+          : "grid grid-cols-1 sm:grid-cols-[minmax(0,170px)_1fr] gap-6 items-center",
+        className,
+      )}
+    >
+      <div
+        className={cn("relative", layout === "stacked" && "mx-auto w-full max-w-[220px]")}
+        style={{ height }}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -127,9 +144,11 @@ export function CompositionChart({
             <th className="text-right pb-1.5 pl-4 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
               Share
             </th>
-            <th className="text-right pb-1.5 pl-4 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
-              {comparisonLabel}
-            </th>
+            {hasComparison && (
+              <th className="text-right pb-1.5 pl-4 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
+                {comparisonLabel}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -148,16 +167,18 @@ export function CompositionChart({
               <td className="py-[7px] pl-4 text-right text-[12px] text-primary tnum">
                 {formatPercentage(slice.share)}
               </td>
-              <td
-                className={cn(
-                  "py-[7px] pl-4 text-right text-[12px] tnum",
-                  slice.comparisonTone === "positive" && "text-positive",
-                  slice.comparisonTone === "negative" && "text-negative",
-                  (!slice.comparisonTone || slice.comparisonTone === "neutral") && "text-secondary",
-                )}
-              >
-                {slice.comparison ?? "—"}
-              </td>
+              {hasComparison && (
+                <td
+                  className={cn(
+                    "py-[7px] pl-4 text-right text-[12px] tnum",
+                    slice.comparisonTone === "positive" && "text-positive",
+                    slice.comparisonTone === "negative" && "text-negative",
+                    (!slice.comparisonTone || slice.comparisonTone === "neutral") && "text-secondary",
+                  )}
+                >
+                  {slice.comparison ?? "—"}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

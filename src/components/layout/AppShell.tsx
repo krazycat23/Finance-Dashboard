@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { PageColophon } from "./PageColophon";
 
 /**
  * APP SHELL — NORTH HOUSE
@@ -28,8 +29,9 @@ export function AppShell() {
       <Sidebar />
       <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto">
         <TopBar />
-        <div className="max-w-[1760px] mx-auto px-8 lg:px-12 pt-7 pb-24">
+        <div className="max-w-[1760px] mx-auto px-8 lg:px-12 pt-7 pb-16">
           <Outlet />
+          <PageColophon />
         </div>
       </main>
     </div>
