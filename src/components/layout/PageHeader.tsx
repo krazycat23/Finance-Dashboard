@@ -23,11 +23,11 @@ interface PageHeaderProps {
 
 export function PageHeader({ eyebrow, title, subtitle, actions }: PageHeaderProps) {
   return (
-    <header className="flex items-end justify-between gap-8 flex-wrap pb-5 border-b border-strong">
+    <header className="flex items-end justify-between gap-8 flex-wrap pb-4 border-b border-strong">
       <div className="min-w-0 max-w-[780px]">
         <div className="eyebrow">{eyebrow}</div>
-        <h1 className="type-heading mt-2">{title}</h1>
-        <p className="type-body mt-2.5">{subtitle}</p>
+        <h1 className="type-heading mt-1.5">{title}</h1>
+        <p className="type-body mt-2">{subtitle}</p>
       </div>
       {actions && <div className="shrink-0 flex items-end gap-2">{actions}</div>}
     </header>

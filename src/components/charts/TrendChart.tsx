@@ -138,7 +138,8 @@ export function TrendChart({
           <XAxis dataKey="label" {...axisProps(tokens)} interval="preserveStartEnd" minTickGap={12} />
           <YAxis
             {...axisProps(tokens)}
-            width={46}
+            width={48}
+            tickCount={5}
             tickFormatter={(value: number) => formatAxis(value)}
           />
           <Tooltip
@@ -173,7 +174,7 @@ export function TrendChart({
             <Bar
               dataKey="priorYear"
               fill={tokens["series-5"]}
-                            maxBarSize={22}
+              maxBarSize={15}
               isAnimationActive={false}
             />
           )}
@@ -182,7 +183,7 @@ export function TrendChart({
             <Bar
               dataKey="actual"
               fill={tokens["series-1"]}
-                            maxBarSize={22}
+              maxBarSize={28}
               isAnimationActive={false}
             />
           ) : (
@@ -201,7 +202,7 @@ export function TrendChart({
             <Bar
               dataKey="forecast"
               fill={tokens["series-2"]}
-                            maxBarSize={22}
+              maxBarSize={28}
               isAnimationActive={false}
             />
           )}
@@ -210,8 +211,8 @@ export function TrendChart({
             <Line
               dataKey="budget"
               stroke={tokens["series-reference"]}
-              strokeWidth={1.75}
-              strokeDasharray="4 3"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
               dot={false}
               isAnimationActive={false}
             />

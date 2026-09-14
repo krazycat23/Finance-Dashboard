@@ -31,7 +31,7 @@ export function KpiBand({ data, emphasiseFirst, className }: KpiBandProps) {
       className={cn(
         // Thin vertical separators come from the cell borders, so the band
         // reflows cleanly at laptop and tablet widths without losing them.
-        "grid gap-y-7 border-y border-strong py-6",
+        "grid gap-y-6 border-y border-strong py-5",
         "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
         className,
       )}
@@ -64,13 +64,16 @@ function KpiFigure({
     <div className={cn("flex flex-col min-w-0", className)}>
       <span className="type-label">{metric.shortName ?? metric.name}</span>
 
-      <span className={cn("type-kpi mt-3", lead ? "type-kpi-lead" : "type-kpi-sm")}>
+      <span className={cn("type-kpi mt-2", lead ? "type-kpi-lead" : "type-kpi-sm")}>
         {formatMetric(value, metric)}
       </span>
 
       {/* One comparative per line, in a fixed order, so every figure in the
-          band has the same height whatever its labels say. */}
-      <div className="flex flex-col gap-[3px] mt-3">
+          band has the same height whatever its labels say. They are set to be
+          read, not merely available: the movement carries the sentiment colour
+          and the qualifier sits in secondary rather than tertiary — still a
+          clear step below the figure above them. */}
+      <div className="flex flex-col gap-[2px] mt-2.5">
         {variance ? (
           <VarianceValue variance={variance} label={comparisonLabel} size="sm">
             {formatMetricDelta(variance.absolute, variance.relative, metric)}
@@ -84,7 +87,6 @@ function KpiFigure({
             label={secondary.label}
             size="xs"
             showGlyph={false}
-            className="opacity-85"
           >
             {formatMetricDelta(
               secondary.variance.absolute,

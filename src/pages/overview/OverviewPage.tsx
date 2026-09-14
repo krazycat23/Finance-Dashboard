@@ -168,7 +168,7 @@ function DemoOverviewPage() {
 
       {/* EDITORIAL LEAD — the statement, and the commentary that supports it.
           Both are readings of the selectors; neither is written here. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-x-12 gap-y-6 mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-x-12 gap-y-5 mt-6">
         <div className="min-w-0">
           {headline.text ? (
             <p className="type-display max-w-[24ch]">{headline.text}</p>
@@ -177,7 +177,7 @@ function DemoOverviewPage() {
               {currentPeriod.label} results reported.
             </p>
           )}
-          <p className="type-caption mt-4">
+          <p className="type-caption mt-3">
             {basis} · {dataset.profile.reportingCurrency} · Fiscal {currentPeriod.fiscalYear}{" "}
             period {currentPeriod.fiscalPeriod}
           </p>
@@ -186,12 +186,12 @@ function DemoOverviewPage() {
         {insights.length > 0 && (
           <div className="min-w-0 border-l-0 lg:border-l lg:border-subtle lg:pl-12">
             <div className="eyebrow">Finance commentary</div>
-            <p className="type-body-lead mt-3">{insights[0].text}</p>
+            <p className="type-body-lead mt-2.5">{insights[0].text}</p>
           </div>
         )}
       </div>
 
-      <div className="mt-9">
+      <div className="mt-7">
         <KpiBand data={kpis} emphasiseFirst />
       </div>
 
@@ -320,7 +320,7 @@ function OutlookRail({
   const progress = outlook.forecast === 0 ? 0 : outlook.actualToDate / outlook.forecast;
 
   return (
-    <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-6 items-end border-b border-subtle pb-6">
+    <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-6 items-end border-b border-subtle pb-5">
       <div className="min-w-0 max-w-[560px]">
         <div className="flex items-baseline justify-between gap-4">
           <span className="type-label">Full-year EBITDA outlook</span>
@@ -329,8 +329,8 @@ function OutlookRail({
             {outlook.remainingPeriods} period{outlook.remainingPeriods === 1 ? "" : "s"} open
           </span>
         </div>
-        <Meter value={outlook.actualToDate} max={outlook.forecast} className="mt-2.5" />
-        <p className="type-caption mt-2">
+        <Meter value={outlook.actualToDate} max={outlook.forecast} className="mt-2" />
+        <p className="type-caption mt-1.5">
           {formatCurrency(outlook.actualToDate)} actual to date ·{" "}
           {formatCurrency(outlook.forecastRemaining)} forecast to go
         </p>
@@ -338,11 +338,11 @@ function OutlookRail({
       <div className="flex items-end gap-8">
         <div>
           <div className="type-label">Outlook</div>
-          <div className="type-kpi type-kpi-sm mt-2">{formatCurrency(outlook.forecast)}</div>
+          <div className="type-kpi type-kpi-sm mt-1.5">{formatCurrency(outlook.forecast)}</div>
         </div>
         <div>
           <div className="type-label">Budget</div>
-          <div className="type-kpi type-kpi-sm mt-2">{formatCurrency(outlook.budget)}</div>
+          <div className="type-kpi type-kpi-sm mt-1.5">{formatCurrency(outlook.budget)}</div>
         </div>
         {variance && (
           <div className="pb-1.5">
@@ -367,42 +367,44 @@ function OutlookRail({
  * whatever the dataset reports; no member list is hard-coded.
  */
 function SalesMixTable({ rows }: { rows: DimensionBreakdown[] }) {
+  const maxRevenue = Math.max(...rows.map((row) => row.revenue), 0);
+
   const columns: Column<DimensionBreakdown>[] = [
-    { id: "name", header: "Channel", align: "left", width: "26%", render: (row) => row.name },
+    {
+      id: "name",
+      header: "Channel",
+      align: "left",
+      width: "30%",
+      render: (row) => <span className="text-[12.5px] font-medium text-primary">{row.name}</span>,
+    },
     {
       id: "revenue",
       header: "Revenue",
       align: "right",
-      width: "13%",
+      width: "16%",
       groupStart: true,
-      render: (row) => formatCurrency(row.revenue),
+      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
     },
     {
       id: "share",
-      header: "Share",
+      header: "Share of revenue",
       align: "right",
-      width: "9%",
-      render: (row) => formatPercentage(row.share),
-    },
-    {
-      id: "mix",
-      header: "",
-      align: "left",
-      width: "26%",
-      // The bar is a second reading of the share beside it, never the only one.
+      width: "22%",
+      // The bar sits under its own number rather than in a column of its own:
+      // the magnitude and the figure it restates belong to one another, and a
+      // separate bar column leaves a channel of dead space down the table.
       render: (row) => (
-        <Meter
-          value={row.revenue}
-          max={Math.max(...rows.map((r) => r.revenue), 0)}
-          className="max-w-[260px]"
-        />
+        <div className="flex flex-col items-end gap-[5px]">
+          <span>{formatPercentage(row.share)}</span>
+          <Meter value={row.revenue} max={maxRevenue} className="w-full max-w-[150px]" />
+        </div>
       ),
     },
     {
       id: "margin",
       header: "Gross margin",
       align: "right",
-      width: "13%",
+      width: "16%",
       groupStart: true,
       render: (row) => formatPercentage(row.grossMargin),
     },
@@ -410,7 +412,7 @@ function SalesMixTable({ rows }: { rows: DimensionBreakdown[] }) {
       id: "growth",
       header: "vs LY",
       align: "right",
-      width: "13%",
+      width: "16%",
       render: (row) => {
         if (row.growth === undefined) return <span className="text-tertiary">—</span>;
         const variance = calculateVariance(row.revenue, row.priorYearRevenue, getMetric("revenue"));

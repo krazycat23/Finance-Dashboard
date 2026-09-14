@@ -36,10 +36,14 @@ export function InsightList({
 /**
  * NUMBERED INSIGHT LIST
  * ---------------------------------------------------------------------------
- * The editorial reading of the same findings: an ordered list with a hairline
- * between entries and the sentiment carried by a short rule against the
- * numeral. Nothing here is generated — it renders exactly the insights the
- * selectors produced, in the order they were ranked.
+ * The editorial reading of the same findings. Three ranks, clearly separated:
+ *
+ *   the numeral      a quiet editorial index in the left gutter
+ *   the finding      primary text, the line a reader actually takes away
+ *   the sentiment    a short rule under the numeral, never colour alone
+ *
+ * Nothing here is generated — it renders exactly the insights the selectors
+ * produced, in the order they were ranked.
  */
 const RULE_CLASS = {
   positive: "bg-positive",
@@ -55,18 +59,17 @@ export function NumberedInsightList({
       {insights.map((insight, index) => (
         <li
           key={insight.id}
-          className="grid grid-cols-[auto_1fr] gap-x-4 py-3 border-t border-subtle first:border-t-0 first:pt-0"
+          className="grid grid-cols-[34px_1fr] gap-x-5 py-3.5 border-t border-subtle first:border-t-0 first:pt-0"
         >
-          <div className="flex items-center gap-2 pt-[3px]">
-            <span aria-hidden className="type-section-number">
+          {/* The gutter carries the index and the sentiment together, so the
+              finding beside it stays a single uninterrupted line of prose. */}
+          <div aria-hidden className="flex flex-col gap-1.5 pt-[3px]">
+            <span className="type-section-number">
               {String(index + 1).padStart(2, "0")}
             </span>
-            <span
-              aria-hidden
-              className={cn("w-[14px] h-[2px] shrink-0", RULE_CLASS[insight.sentiment])}
-            />
+            <span className={cn("w-[18px] h-[2px]", RULE_CLASS[insight.sentiment])} />
           </div>
-          <p className="type-body">{insight.text}</p>
+          <p className="text-[13.5px] leading-[1.55] text-primary">{insight.text}</p>
         </li>
       ))}
     </ol>

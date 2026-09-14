@@ -36,7 +36,7 @@ interface VarianceValueProps {
 }
 
 const SIZE_CLASS = {
-  xs: "text-[10.5px]",
+  xs: "text-[11px]",
   sm: "text-[11.5px]",
   md: "text-[12.5px]",
 } as const;
@@ -64,7 +64,7 @@ export function VarianceValue({
         <Icon size={GLYPH_SIZE[size]} strokeWidth={2.75} aria-hidden className="shrink-0" />
       )}
       <span>{children}</span>
-      {label && <span className="text-tertiary font-normal">{label}</span>}
+      {label && <span className="text-secondary font-normal">{label}</span>}
     </span>
   );
 }

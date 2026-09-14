@@ -120,8 +120,8 @@ export function divergingFill(
  */
 export function axisProps(tokens: ChartTokens) {
   return {
-    tick: { fill: tokens["axis-text"], fontSize: 10.5, fontWeight: 500 },
+    tick: { fill: tokens["axis-text"], fontSize: 11, fontWeight: 500 },
     tickLine: false,
-    axisLine: { stroke: tokens["border-default"], strokeWidth: 1 },
+    axisLine: { stroke: tokens["border-strong"], strokeWidth: 1 },
   } as const;
 }

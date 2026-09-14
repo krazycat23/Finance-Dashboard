@@ -24,9 +24,9 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Primary"
-      className="w-[216px] shrink-0 bg-nav border-r border-subtle flex flex-col h-screen sticky top-0"
+      className="w-[216px] shrink-0 bg-nav border-r border-line flex flex-col h-screen sticky top-0"
     >
-      <div className="px-5 h-[58px] flex flex-col justify-center border-b border-subtle shrink-0">
+      <div className="px-5 h-[58px] flex flex-col justify-center border-b border-line shrink-0">
         <span className="font-serif text-[15px] leading-none tracking-[0.01em] text-primary truncate">
           {profile.shortName ?? profile.companyName}
         </span>
@@ -50,8 +50,8 @@ export function Sidebar() {
                         "group flex items-baseline gap-2.5 pl-5 pr-4 py-[7px]",
                         "type-control border-l-2 transition-colors",
                         isActive
-                          ? "border-l-accent bg-inset text-primary font-semibold"
-                          : "border-l-transparent text-secondary hover:text-primary hover:bg-inset/60",
+                          ? "border-l-accent bg-panel text-primary font-semibold"
+                          : "border-l-transparent text-secondary hover:text-primary hover:bg-inset/70",
                       )
                     }
                   >
@@ -77,7 +77,7 @@ export function Sidebar() {
         ))}
       </div>
 
-      <div className="px-5 py-3.5 border-t border-subtle shrink-0">
+      <div className="px-5 py-3.5 border-t border-line shrink-0">
         <div className="type-caption leading-snug">
           {profile.companyName} · {profile.tagline}
         </div>

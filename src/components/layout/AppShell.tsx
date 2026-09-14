@@ -28,7 +28,7 @@ export function AppShell() {
       <Sidebar />
       <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto">
         <TopBar />
-        <div className="max-w-[1760px] mx-auto px-6 lg:px-8 pt-8 pb-20">
+        <div className="max-w-[1760px] mx-auto px-6 lg:px-8 pt-6 pb-20">
           <Outlet />
         </div>
       </main>
@@ -41,5 +41,5 @@ export function AppShell() {
  * space and rules rather than by floating cards, so the gap is generous.
  */
 export function PageSections({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-10 mt-8">{children}</div>;
+  return <div className="flex flex-col gap-9 mt-7">{children}</div>;
 }

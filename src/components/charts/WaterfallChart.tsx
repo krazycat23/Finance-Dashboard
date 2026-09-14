@@ -1,5 +1,5 @@
 import {
-  Bar, CartesianGrid, Cell, ComposedChart, Customized, ReferenceLine,
+  Bar, CartesianGrid, Cell, ComposedChart, Customized, LabelList, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { axisUnitLabel, formatAxis, formatCurrency } from "@/utils/format";
@@ -136,17 +136,18 @@ export function WaterfallChart({
       }
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={rows} margin={{ top: 14, right: 4, bottom: 0, left: -8 }}>
+        <ComposedChart data={rows} margin={{ top: 24, right: 8, bottom: 0, left: -6 }}>
           <CartesianGrid stroke={tokens["grid-line"]} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="label"
             {...axisProps(tokens)}
             interval={0}
-            tick={{ fill: tokens["axis-text"], fontSize: 10 }}
+            tickMargin={6}
           />
           <YAxis
             {...axisProps(tokens)}
-            width={46}
+            width={48}
+            tickCount={5}
             domain={[domainMin, domainMax]}
             // Without this Recharts widens the domain to fit the zero-anchored
             // base segments, undoing the truncation. Clipping is intended here:
@@ -183,10 +184,26 @@ export function WaterfallChart({
           />
           {/* Transparent spacer carrying each bar to its starting height. */}
           <Bar dataKey="base" stackId="bridge" fill="transparent" isAnimationActive={false} />
-          <Bar dataKey="magnitude" stackId="bridge" maxBarSize={46} isAnimationActive={false}>
+          <Bar dataKey="magnitude" stackId="bridge" maxBarSize={52} isAnimationActive={false}>
             {rows.map((row, index) => (
               <Cell key={index} fill={colourFor(row)} />
             ))}
+            {/* Direct labels: a bridge is read as a set of movements, and a
+                reader should not have to hover to learn what a driver was
+                worth. Addressed by index rather than by value, so two drivers
+                of equal magnitude cannot borrow each other's sign. */}
+            <LabelList
+              dataKey="magnitude"
+              position="top"
+              content={(props: object) => (
+                <BarValueLabel
+                  {...(props as BarLabelProps)}
+                  rows={rows}
+                  fill={tokens["text-secondary"]}
+                  format={money}
+                />
+              )}
+            />
           </Bar>
           <Customized
             component={(chartProps: object) => (
@@ -201,6 +218,42 @@ export function WaterfallChart({
         </ComposedChart>
       </ResponsiveContainer>
     </ChartFrame>
+  );
+}
+
+interface BarLabelProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  index?: number;
+}
+
+/**
+ * The value printed above each column. Movements carry their sign; the opening
+ * and closing columns are levels and carry none.
+ */
+function BarValueLabel({
+  x, y, width, index, rows, fill, format,
+}: BarLabelProps & {
+  rows: WaterfallRow[];
+  fill: string;
+  format: (value: number, showSign?: boolean) => string;
+}) {
+  if (x === undefined || y === undefined || width === undefined || index === undefined) return null;
+  const row = rows[index];
+  if (!row) return null;
+
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 7}
+      textAnchor="middle"
+      fill={fill}
+      fontSize={10.5}
+      fontWeight={600}
+    >
+      {format(row.value, row.kind === "delta")}
+    </text>
   );
 }
 

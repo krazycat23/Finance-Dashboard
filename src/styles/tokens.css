@@ -37,7 +37,7 @@
   --surface-panel: #fbf8f1;
   --surface-raised: #ffffff;
   --surface-sunken: #ece5d6;
-  --surface-nav: #f0e9db;
+  --surface-nav: #eae1cd;
   --surface-inset: #e8e0cf;
   /* Fills for quiet magnitude bars and zebra bands. */
   --fill-muted: #e2d9c6;
@@ -55,13 +55,13 @@
   --text-inverse: #fbf8f1;
 
   /* -- Brand / interactive ----------------------------------------------- */
-  --accent: #1f3d2f; /* deep forest green */
-  --accent-hover: #162d23;
+  --accent: #17362a; /* deep forest green */
+  --accent-hover: #0f281f;
   --accent-soft: #e2e7de;
   --accent-on: #fbf8f1;
   --accent-warm: #a9772f; /* subtle warm accent — brass */
   --accent-warm-soft: #f2e7d2;
-  --focus-ring: #1f3d2f;
+  --focus-ring: #17362a;
 
   /* -- Semantic — variance only ------------------------------------------ */
   --positive: #2f6b47;
@@ -74,7 +74,7 @@
   --neutral-soft: #e8e0cf;
 
   /* -- Chart series — forest / stone, ordered by emphasis ---------------- */
-  --series-1: #1f3d2f; /* primary / actual */
+  --series-1: #17362a; /* primary / actual */
   --series-2: #6e8c74; /* comparison */
   --series-3: #8a8477; /* tertiary / stone */
   --series-4: #b0a894;
@@ -95,7 +95,7 @@
      and always ships the value in the cell, so colour is never the only
      encoding.
   --------------------------------------------------------------------------- */
-  --cat-1: #1f3d2f;
+  --cat-1: #17362a;
   --cat-2: #7a5a2b;
   --cat-3: #46646e;
   --cat-4: #8c5347;
@@ -113,8 +113,8 @@
   --diverging-neutral: #e8e0cf;
   --diverging-positive: #2f6b47;
 
-  --grid-line: #e3dbc9;
-  --axis-text: #857e6e;
+  --grid-line: #ded5c0;
+  --axis-text: #6e6656;
 
   /* Elevation — reserved for true overlays only. */
   --shadow-overlay: 0 10px 28px -12px rgb(27 33 29 / 0.24),
@@ -146,8 +146,8 @@
   --border-strong: #4c453a;
 
   --text-primary: #efe7d9; /* warm ivory */
-  --text-secondary: #a49b89;
-  --text-tertiary: #7b7364;
+  --text-secondary: #b4ab98;
+  --text-tertiary: #8b8271;
   --text-inverse: #17150f;
 
   --accent: #c08a4a; /* muted bronze */
@@ -164,12 +164,12 @@
   --negative-soft: #2b1a17;
   --caution: #c19a4c;
   --caution-soft: #29210f;
-  --neutral: #a49b89;
+  --neutral: #b4ab98;
   --neutral-soft: #221f1b;
 
   --series-1: #e4d7bf; /* ivory — primary / actual */
   --series-2: #c08a4a; /* bronze — comparison */
-  --series-3: #8a9b72; /* olive — tertiary */
+  --series-3: #8d8574; /* warm stone — tertiary, never a sentiment */
   --series-4: #7b7364;
   --series-5: #574f42; /* muted comparison fill */
   --series-reference: #9a8f7a;
@@ -194,8 +194,8 @@
   --diverging-neutral: #221f1b;
   --diverging-positive: #85a56c;
 
-  --grid-line: #262320;
-  --axis-text: #7b7364;
+  --grid-line: #2d2a26;
+  --axis-text: #968d7b;
 
   --shadow-overlay: 0 10px 28px -12px rgb(0 0 0 / 0.7),
     0 2px 6px -2px rgb(0 0 0 / 0.5);

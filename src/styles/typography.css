@@ -22,8 +22,8 @@
   /* 01 — Display. The company/period lead on a report cover. Used once a page. */
   .type-display {
     font-family: var(--font-display-family);
-    font-size: clamp(30px, 2.5vw, 38px);
-    line-height: 1.1;
+    font-size: clamp(29px, 2.4vw, 36px);
+    line-height: 1.06;
     letter-spacing: -0.018em;
     font-weight: 400;
     color: var(--text-primary);
