@@ -29,6 +29,8 @@ export interface NavItem {
 export interface NavGroup {
   id: string;
   label?: string;
+  /** One line of copy, used where a group is presented as a destination. */
+  description?: string;
   items: NavItem[];
 }
 
@@ -42,6 +44,7 @@ export const navigation: NavGroup[] = [
   {
     id: "performance",
     label: "Performance",
+    description: "Trading, commercial and operational performance.",
     items: [
       { id: "overview", label: "Overview", path: "/", icon: LayoutGrid },
       { id: "sales", label: "Sales", path: "/sales", icon: TrendingUp },
@@ -51,6 +54,7 @@ export const navigation: NavGroup[] = [
   {
     id: "financials",
     label: "Financials",
+    description: "The statutory statements and the position behind them.",
     items: [
       { id: "pnl", label: "Profit & Loss", path: "/profit-and-loss", icon: FileText },
       { id: "balance-sheet", label: "Balance Sheet", path: "/balance-sheet", icon: Scale },
@@ -60,6 +64,7 @@ export const navigation: NavGroup[] = [
   {
     id: "planning",
     label: "Planning",
+    description: "Forward outlook, variance to plan and the reporting library.",
     items: [
       { id: "forecasts", label: "Forecasts", path: "/forecasts", icon: LineChart },
       { id: "variance", label: "Variance Analysis", path: "/variance", icon: GitCompareArrows },
@@ -69,6 +74,7 @@ export const navigation: NavGroup[] = [
   {
     id: "administration",
     label: "Administration",
+    description: "Source configuration, mapping and application settings.",
     items: [
       { id: "data-mapping", label: "Data & Mapping", path: "/data-mapping", icon: Database },
       { id: "settings", label: "Settings", path: "/settings", icon: Settings },

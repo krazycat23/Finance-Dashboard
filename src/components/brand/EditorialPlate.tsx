@@ -24,6 +24,11 @@ interface EditorialPlateProps {
   className?: string;
   /** Where the caption band sits within the plate. */
   align?: "top" | "bottom";
+  /**
+   * Portrait stacks the caption under the mark; landscape runs it down a
+   * column at the trailing edge, for a plate set as a wide header strip.
+   */
+  orientation?: "portrait" | "landscape";
   /** Brand photography, when the client has supplied some. */
   imageSrc?: string;
   imageAlt?: string;
@@ -40,11 +45,19 @@ const APERTURE = [
 const RULES = [36, 62, 88, 114, 140, 166, 192, 218, 244, 270];
 
 export function EditorialPlate({
-  children, className, align = "bottom", imageSrc, imageAlt = "",
+  children, className, align = "bottom", orientation = "portrait",
+  imageSrc, imageAlt = "",
 }: EditorialPlateProps) {
+  const landscape = orientation === "landscape";
+
   const caption = children && (
     <div
-      className="px-4 py-3 border-t-2 border-t-accent-warm"
+      className={cn(
+        "px-4 py-3",
+        landscape
+          ? "border-l-2 border-l-accent-warm flex flex-col justify-center shrink-0"
+          : "border-t-2 border-t-accent-warm",
+      )}
       style={{ backgroundColor: "var(--plate-ink)", color: "var(--plate-ink-on)" }}
     >
       {children}
@@ -53,10 +66,10 @@ export function EditorialPlate({
 
   return (
     <div
-      className={cn("flex flex-col overflow-hidden min-w-0", className)}
+      className={cn("flex overflow-hidden min-w-0", landscape ? "flex-row" : "flex-col", className)}
       style={{ backgroundColor: "var(--plate-ground)" }}
     >
-      {align === "top" && caption}
+      {align === "top" && !landscape && caption}
 
       <div className="relative flex-1 min-h-0">
         {imageSrc ? (
@@ -65,7 +78,10 @@ export function EditorialPlate({
           <svg
             aria-hidden
             viewBox="0 0 600 400"
-            preserveAspectRatio="xMidYMid slice"
+            // A wide strip crops the artwork hard: anchoring to the baseline
+            // keeps the mark and its ground in frame instead of slicing the
+            // empty ruling out of the middle.
+            preserveAspectRatio={landscape ? "xMidYMax slice" : "xMidYMid slice"}
             className="absolute inset-0 w-full h-full"
           >
             {/* Engraved ruling: the ground of a printed plate. */}
@@ -91,7 +107,7 @@ export function EditorialPlate({
         )}
       </div>
 
-      {align === "bottom" && caption}
+      {(align === "bottom" || landscape) && caption}
     </div>
   );
 }
