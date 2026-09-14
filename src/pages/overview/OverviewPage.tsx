@@ -2,9 +2,8 @@ import { useMemo, useState } from "react";
 import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PageSections } from "@/components/layout/AppShell";
-import { Exhibit, Section } from "@/components/layout/Section";
+import { Section, SectionRow } from "@/components/layout/Section";
+import { EditorialPlate } from "@/components/brand/EditorialPlate";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Meter } from "@/components/ui/Meter";
 import { KpiBand } from "@/components/finance/KpiBand";
@@ -15,44 +14,43 @@ import { ReportingUnavailable } from "@/components/finance/ReportingAvailability
 import { VarianceValue } from "@/components/finance/VarianceValue";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
+import { CompositionChart, type CompositionSlice } from "@/components/charts/CompositionChart";
 import { StatementTable } from "@/components/tables/StatementTable";
-import { DataTable, type Column } from "@/components/tables/DataTable";
 import {
   periodsForBasis, selectBreakdown, selectEbitdaBridge, selectEntityPerformance,
   selectFullYearOutlook, selectInsights, selectKpis, selectMetricSeries,
-  selectProfitAndLoss, type DimensionBreakdown,
+  selectProfitAndLoss,
 } from "@/domain/selectors";
 import {
   reportingCapabilities, selectAvailable, selectModuleAvailability,
 } from "@/domain/selectors/availability";
 import { calculateVariance } from "@/domain/metrics/variance";
 import { getMetric } from "@/domain/metrics";
-import {
-  formatBasisPoints, formatCurrency, formatPercentage,
-} from "@/utils/format";
+import { formatBasisPoints, formatCurrency, formatPercentage } from "@/utils/format";
 
 /**
  * EXECUTIVE OVERVIEW — NORTH HOUSE
  * ---------------------------------------------------------------------------
- * The page a CFO opens first, laid out as the opening spread of an annual
- * report rather than as a dashboard:
+ * The opening spread of the reporting pack, composed as a document rather than
+ * assembled as a dashboard:
  *
- *   masthead            company, period, controls (the shell carries these)
- *   editorial lead      the performance statement and its commentary
- *   KPI band            the headline figures, divided by rules, not boxed
- *   01 Trading          the central performance exhibit
- *   02 Key drivers      numbered commentary from the variance selectors
- *   03 Sales mix        an existing sales dimension, or the unavailable state
- *   04 P&L summary      the compact statement
- *   05 EBITDA bridge    where the model supports a genuine bridge
- *   06 Entity           performance by reporting entity
+ *   masthead      the performance statement, the commentary, the plate
+ *   KPI band      four figures on one ruled band, divided by hairlines
+ *   01 | 02       trading performance against the sales mix      (60 / 40)
+ *   03 | 04       the P&L summary against the key drivers        (60 / 40)
+ *   05            the EBITDA bridge, full measure
+ *   06            entity performance
+ *
+ * Nothing on this page is boxed. Charts and tables sit directly on the canvas
+ * and are separated by rules and whitespace, so the spread reads continuously
+ * from the headline down rather than as a stack of independent modules.
  *
  * It is composed entirely from shared primitives and existing selectors: no
  * chart code, no formatting and no arithmetic of its own.
  */
 
-/** Headline figures. Only metrics the active dataset reports are requested. */
-const OVERVIEW_KPIS = ["revenue", "ebitda", "netProfit", "grossMargin", "cash"];
+/** The headline figures. Matches the metrics the reporting spec supports. */
+const OVERVIEW_KPIS = ["revenue", "ebitda", "netProfit", "grossMargin"];
 
 /** Measures the trading exhibit can plot, all backed by the metric registry. */
 const TRADING_MEASURES = [
@@ -109,6 +107,24 @@ function DemoOverviewPage() {
   const pnlRows = useMemo(() => selectProfitAndLoss(selection), [selection]);
   const entityPerformance = useMemo(() => selectEntityPerformance(selection), [selection]);
 
+  const mixSlices = useMemo<CompositionSlice[]>(
+    () =>
+      salesMix.map((row) => ({
+        id: row.id,
+        label: row.name,
+        value: row.revenue,
+        comparison:
+          row.growth === undefined ? undefined : formatPercentage(row.growth, { showSign: true }),
+        comparisonTone:
+          row.growth === undefined ? "neutral" : row.growth >= 0 ? "positive" : "negative",
+      })),
+    [salesMix],
+  );
+  const mixTotal = useMemo(
+    () => salesMix.reduce((sum, row) => sum + row.revenue, 0),
+    [salesMix],
+  );
+
   // Each measure carries its own primary value and its own comparative, so the
   // toggle changes what is ranked rather than just relabelling the same bars.
   const rankedItems = useMemo<RankedItem[]>(() => {
@@ -160,109 +176,145 @@ function DemoOverviewPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Executive Overview"
-        title={dataset.profile.companyName}
-        subtitle={`${currentPeriod.label} reporting pack. Group results with variance to plan and to last year.`}
-      />
-
-      {/* EDITORIAL LEAD — the statement, and the commentary that supports it.
-          Both are readings of the selectors; neither is written here. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-x-12 gap-y-5 mt-6">
+      {/* MASTHEAD -------------------------------------------------------------
+          The statement, the commentary that supports it, and the plate. Three
+          columns divided by hairlines: 55 / 20 / 25, the proportions of a
+          report cover rather than of a dashboard header. */}
+      <header className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.95fr)] gap-x-9 gap-y-7">
         <div className="min-w-0">
-          {headline.text ? (
-            <p className="type-display max-w-[24ch]">{headline.text}</p>
-          ) : (
-            <p className="type-display max-w-[24ch]">
-              {currentPeriod.label} results reported.
-            </p>
-          )}
-          <p className="type-caption mt-3">
-            {basis} · {dataset.profile.reportingCurrency} · Fiscal {currentPeriod.fiscalYear}{" "}
-            period {currentPeriod.fiscalPeriod}
+          <div className="eyebrow">Overview</div>
+          <h1 className="type-display mt-3.5 max-w-[20ch]">
+            {headline.text ?? `${currentPeriod.label} results reported.`}
+          </h1>
+          <p className="type-body-lead mt-4 max-w-[52ch]">
+            {dataset.profile.companyName} · {currentPeriod.label} reporting pack. Group
+            results with variance to plan and to last year.
           </p>
         </div>
 
         {insights.length > 0 && (
-          <div className="min-w-0 border-l-0 lg:border-l lg:border-subtle lg:pl-12">
+          <div className="min-w-0 lg:border-l lg:border-subtle lg:pl-9">
             <div className="eyebrow">Finance commentary</div>
-            <p className="type-body-lead mt-2.5">{insights[0].text}</p>
+            <p className="font-serif text-[15px] leading-[1.5] text-primary mt-3.5">
+              {insights[0].text}
+            </p>
+            <div className="w-8 h-px bg-[var(--border-strong)] mt-4" />
           </div>
         )}
-      </div>
 
-      <div className="mt-7">
+        {/* The plate carries the reporting context, so the pack's cover states
+            what it is a pack of. */}
+        <EditorialPlate className="min-h-[218px] hidden lg:block" align="bottom">
+          <dl className="grid grid-cols-2 gap-x-6 text-[9px] font-semibold uppercase tracking-[0.15em] leading-[1.9]">
+            <div>
+              <dt className="opacity-60">Period</dt>
+              <dd>{currentPeriod.label}</dd>
+            </div>
+            <div>
+              <dt className="opacity-60">Basis</dt>
+              <dd>{basis}</dd>
+            </div>
+            <div>
+              <dt className="opacity-60">Fiscal</dt>
+              <dd>
+                {currentPeriod.fiscalYear} · P{currentPeriod.fiscalPeriod}
+              </dd>
+            </div>
+            <div>
+              <dt className="opacity-60">Currency</dt>
+              <dd>{dataset.profile.reportingCurrency}</dd>
+            </div>
+          </dl>
+        </EditorialPlate>
+      </header>
+
+      <div className="mt-9">
         <KpiBand data={kpis} emphasiseFirst />
       </div>
 
-      {outlook && <OutlookRail outlook={outlook} />}
+      {outlook && <OutlookStrip outlook={outlook} />}
 
-      <PageSections>
-        <Section
-          number="01"
-          title="Trading performance"
-          meta="Rolling 12 months"
-          description="Actual against last year, with plan shown as a reference line. Periods that have not closed carry no actual."
-          actions={
-            <SegmentedControl
-              aria-label="Trading measure"
-              value={measure}
-              onChange={setMeasure}
-              options={TRADING_MEASURES.map((option) => ({ ...option }))}
-            />
-          }
-        >
-          <Exhibit className="px-5 py-5">
+      {/* 01 | 02 --------------------------------------------------------------- */}
+      <div className="mt-10 flex flex-col gap-10">
+        <SectionRow>
+          <Section
+            flushTop
+            number="01"
+            title="Trading performance"
+            meta="Rolling 12 months"
+            actions={
+              <SegmentedControl
+                aria-label="Trading measure"
+                value={measure}
+                onChange={setMeasure}
+                options={TRADING_MEASURES.map((option) => ({ ...option }))}
+              />
+            }
+          >
             <TrendChart
               data={trend}
-              height={320}
+              height={306}
               actualLabel={`${measureLabel} — actual`}
               priorYearLabel="Last year"
               budgetLabel="Budget"
             />
-          </Exhibit>
-        </Section>
+          </Section>
 
-        {insights.length > 0 && (
           <Section
+            flushTop
             number="02"
+            title="Sales mix"
+            meta={mixSlices.length > 0 ? "By channel" : undefined}
+          >
+            {mixSlices.length > 0 ? (
+              <CompositionChart
+                slices={mixSlices}
+                // Ranked by revenue, so the mix reads as one hue light to dark
+                // rather than as four unrelated colours competing for meaning.
+                mode="sequential"
+                surface="canvas"
+                height={238}
+                centreValue={formatCurrency(mixTotal)}
+                centreLabel="Total sales"
+              />
+            ) : (
+              <ReportingUnavailable message={selectModuleAvailability("sales", dataset).message} />
+            )}
+          </Section>
+        </SectionRow>
+
+        {/* 03 | 04 ------------------------------------------------------------- */}
+        <SectionRow>
+          <Section
+            flushTop
+            number="03"
+            title="Profit & Loss summary"
+            meta="$'000"
+            description={`${basis} to ${currentPeriod.label}, against budget.`}
+          >
+            <StatementTable
+              rows={pnlRows}
+              actualLabel={`${basis} ${currentPeriod.label}`}
+              columnSet="budgetOnly"
+              scale="thousands"
+            />
+          </Section>
+
+          <Section
+            flushTop
+            number="04"
             title="Key drivers"
             meta="Derived from reported results"
-            description="Each entry restates a movement already present in the statements below."
           >
-            <div className="max-w-[110ch]">
+            {insights.length > 0 ? (
               <NumberedInsightList insights={insights} />
-            </div>
+            ) : (
+              <p className="type-body">No movements of note in the reported results.</p>
+            )}
           </Section>
-        )}
+        </SectionRow>
 
-        <Section
-          number="03"
-          title="Sales mix"
-          meta={salesMix.length > 0 ? "By channel" : undefined}
-          description="Revenue by reported sales dimension, with share of group revenue and movement on last year."
-        >
-          {salesMix.length > 0 ? (
-            <SalesMixTable rows={salesMix} />
-          ) : (
-            <ReportingUnavailable message={selectModuleAvailability("sales", dataset).message} />
-          )}
-        </Section>
-
-        <Section
-          number="04"
-          title="Profit & Loss summary"
-          meta="$'000"
-          description={`${basis} to ${currentPeriod.label}, against budget and last year.`}
-        >
-          <StatementTable
-            rows={pnlRows}
-            actualLabel={`${basis} ${currentPeriod.label}`}
-            columnSet="full"
-            scale="thousands"
-          />
-        </Section>
-
+        {/* 05 ------------------------------------------------------------------ */}
         {bridge.length > 2 && (
           <Section
             number="05"
@@ -270,12 +322,11 @@ function DemoOverviewPage() {
             meta={`${currentPeriod.fiscalYear} vs last year`}
             description="Movement decomposed into the drivers the model reports. Opening and closing columns are levels; the bars between them are movements."
           >
-            <Exhibit className="px-5 py-5">
-              <WaterfallChart steps={bridge} height={300} />
-            </Exhibit>
+            <WaterfallChart steps={bridge} height={300} />
           </Section>
         )}
 
+        {/* 06 ------------------------------------------------------------------ */}
         <Section
           number="06"
           title="Entity performance"
@@ -294,145 +345,56 @@ function DemoOverviewPage() {
             />
           }
         >
-          <div className="max-w-[860px]">
+          <div className="max-w-[980px]">
             <RankedBarList items={rankedItems} showIndex />
           </div>
         </Section>
-      </PageSections>
+      </div>
     </>
   );
 }
 
 /**
- * FULL-YEAR OUTLOOK RAIL
+ * FULL-YEAR OUTLOOK STRIP
  * ---------------------------------------------------------------------------
- * Progress against the full-year position: actual to date, forecast to go, and
- * the variance to budget the forecast selector already computed. Shown only
- * where the dataset supports forecasting.
+ * Progress against the full-year position — actual to date, forecast to go and
+ * the variance to budget the forecast selector already computed — set as a
+ * single line hung off the KPI band rather than as a block of its own. Shown
+ * only where the dataset supports forecasting.
  */
-function OutlookRail({
-  outlook,
-}: {
-  outlook: ReturnType<typeof selectFullYearOutlook>;
-}) {
-  const metric = getMetric("ebitda");
-  const variance = calculateVariance(outlook.forecast, outlook.budget, metric);
+function OutlookStrip({ outlook }: { outlook: ReturnType<typeof selectFullYearOutlook> }) {
+  const variance = calculateVariance(outlook.forecast, outlook.budget, getMetric("ebitda"));
   const progress = outlook.forecast === 0 ? 0 : outlook.actualToDate / outlook.forecast;
 
   return (
-    <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-6 items-end border-b border-subtle pb-5">
-      <div className="min-w-0 max-w-[560px]">
-        <div className="flex items-baseline justify-between gap-4">
-          <span className="type-label">Full-year EBITDA outlook</span>
-          <span className="type-caption">
-            {formatPercentage(progress)} of outlook banked ·{" "}
-            {outlook.remainingPeriods} period{outlook.remainingPeriods === 1 ? "" : "s"} open
-          </span>
-        </div>
-        <Meter value={outlook.actualToDate} max={outlook.forecast} className="mt-2" />
-        <p className="type-caption mt-1.5">
-          {formatCurrency(outlook.actualToDate)} actual to date ·{" "}
-          {formatCurrency(outlook.forecastRemaining)} forecast to go
-        </p>
+    <div className="flex items-center gap-x-9 gap-y-3 flex-wrap py-3.5 border-b border-subtle">
+      <span className="type-label shrink-0">Full-year EBITDA outlook</span>
+
+      <div className="flex items-center gap-3 min-w-[220px] flex-1 max-w-[420px]">
+        <Meter value={outlook.actualToDate} max={outlook.forecast} className="flex-1" />
+        <span className="type-caption whitespace-nowrap">{formatPercentage(progress)} banked</span>
       </div>
-      <div className="flex items-end gap-8">
-        <div>
-          <div className="type-label">Outlook</div>
-          <div className="type-kpi type-kpi-sm mt-1.5">{formatCurrency(outlook.forecast)}</div>
-        </div>
-        <div>
-          <div className="type-label">Budget</div>
-          <div className="type-kpi type-kpi-sm mt-1.5">{formatCurrency(outlook.budget)}</div>
-        </div>
+
+      <span className="type-caption whitespace-nowrap">
+        {formatCurrency(outlook.actualToDate)} to date · {formatCurrency(outlook.forecastRemaining)}{" "}
+        to go · {outlook.remainingPeriods} period{outlook.remainingPeriods === 1 ? "" : "s"} open
+      </span>
+
+      <span className="flex items-baseline gap-5 ml-auto shrink-0">
+        <span className="type-caption">
+          Outlook{" "}
+          <span className="text-primary font-medium tnum">{formatCurrency(outlook.forecast)}</span>
+        </span>
+        <span className="type-caption">
+          Budget{" "}
+          <span className="text-primary font-medium tnum">{formatCurrency(outlook.budget)}</span>
+        </span>
         {variance && (
-          <div className="pb-1.5">
-            <div className="type-label">Variance</div>
-            <div className="mt-2.5">
-              <VarianceValue variance={variance} label="vs budget" size="md">
-                {formatCurrency(variance.absolute, { showSign: true })}
-              </VarianceValue>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * SALES MIX
- * ---------------------------------------------------------------------------
- * Rendered through the shared table primitive so the mix reads with the same
- * alignment, numerals and rules as the statement below it. The dimension is
- * whatever the dataset reports; no member list is hard-coded.
- */
-function SalesMixTable({ rows }: { rows: DimensionBreakdown[] }) {
-  const maxRevenue = Math.max(...rows.map((row) => row.revenue), 0);
-
-  const columns: Column<DimensionBreakdown>[] = [
-    {
-      id: "name",
-      header: "Channel",
-      align: "left",
-      width: "30%",
-      render: (row) => <span className="text-[12.5px] font-medium text-primary">{row.name}</span>,
-    },
-    {
-      id: "revenue",
-      header: "Revenue",
-      align: "right",
-      width: "16%",
-      groupStart: true,
-      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
-    },
-    {
-      id: "share",
-      header: "Share of revenue",
-      align: "right",
-      width: "22%",
-      // The bar sits under its own number rather than in a column of its own:
-      // the magnitude and the figure it restates belong to one another, and a
-      // separate bar column leaves a channel of dead space down the table.
-      render: (row) => (
-        <div className="flex flex-col items-end gap-[5px]">
-          <span>{formatPercentage(row.share)}</span>
-          <Meter value={row.revenue} max={maxRevenue} className="w-full max-w-[150px]" />
-        </div>
-      ),
-    },
-    {
-      id: "margin",
-      header: "Gross margin",
-      align: "right",
-      width: "16%",
-      groupStart: true,
-      render: (row) => formatPercentage(row.grossMargin),
-    },
-    {
-      id: "growth",
-      header: "vs LY",
-      align: "right",
-      width: "16%",
-      render: (row) => {
-        if (row.growth === undefined) return <span className="text-tertiary">—</span>;
-        const variance = calculateVariance(row.revenue, row.priorYearRevenue, getMetric("revenue"));
-        if (!variance) return <span className="text-tertiary">—</span>;
-        return (
-          <VarianceValue variance={variance} size="sm" showGlyph={false}>
-            {formatPercentage(row.growth, { showSign: true })}
+          <VarianceValue variance={variance} label="vs budget" size="sm">
+            {formatCurrency(variance.absolute, { showSign: true })}
           </VarianceValue>
-        );
-      },
-    },
-  ];
-
-  return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      rowKey={(row) => row.id}
-      minWidth={720}
-      empty="No sales dimension members reported for this selection."
-    />
+        )}
+      </span>
+    </div>
   );
 }

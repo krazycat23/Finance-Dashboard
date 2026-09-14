@@ -4,13 +4,15 @@ import { cn } from "@/utils/cn";
 /**
  * EDITORIAL SECTION
  * ---------------------------------------------------------------------------
- * The North House replacement for a page full of floating cards: a numeral, a
- * heading, an optional standfirst and controls, separated from the section
- * above by a single strong rule.
+ * The North House alternative to a page of cards: a numeral, a heading, an
+ * optional standfirst and controls, separated from what came before by a
+ * single rule. Content sits directly on the canvas — charts and tables carry
+ * no container of their own, so the page reads as one document rather than a
+ * tray of widgets.
  *
- * Content sits directly on the canvas. Nothing is boxed unless the content
- * itself is a discrete exhibit, which keeps the page reading as one document
- * rather than a tray of widgets.
+ * The numeral is set large and in the display serif. It is the page's index —
+ * the thing that tells a reader where they are in the pack — so it is a
+ * visible part of the composition rather than a caption above the title.
  */
 
 interface SectionProps {
@@ -23,43 +25,72 @@ interface SectionProps {
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Omits the section's own top rule, where a parent row already draws one. */
+  flushTop?: boolean;
 }
 
 export function Section({
-  number, title, meta, description, actions, children, className,
+  number, title, meta, description, actions, children, className, flushTop,
 }: SectionProps) {
   return (
-    <section className={cn("min-w-0", className)}>
-      <div className="border-t border-strong pt-3.5 flex items-start justify-between gap-6 flex-wrap">
-        <div className="min-w-0 max-w-[720px]">
-          <div className="flex items-baseline gap-3">
+    <section className={cn("min-w-0 flex flex-col", className)}>
+      <div
+        className={cn(
+          "flex items-start justify-between gap-6 flex-wrap",
+          !flushTop && "border-t border-strong pt-4",
+        )}
+      >
+        <div className="min-w-0 max-w-[760px]">
+          <div className="flex items-baseline gap-3.5">
             {number && (
-              <span aria-hidden className="type-section-number">
+              <span
+                aria-hidden
+                className="font-serif text-[26px] leading-none text-tertiary tnum tracking-[-0.02em]"
+              >
                 {number}
               </span>
             )}
-            <h2 className="type-section">{title}</h2>
+            <h2 className="type-section text-[17px]">{title}</h2>
             {meta && <span className="type-caption whitespace-nowrap">{meta}</span>}
           </div>
-          {description && <p className="type-caption mt-1.5 max-w-[68ch]">{description}</p>}
+          {description && <p className="type-caption mt-2 max-w-[62ch]">{description}</p>}
         </div>
         {actions && <div className="shrink-0 flex items-end gap-2">{actions}</div>}
       </div>
-      <div className="mt-5 min-w-0">{children}</div>
+      <div className="mt-5 min-w-0 flex-1">{children}</div>
     </section>
   );
 }
 
 /**
- * A framed exhibit inside a section — used where content genuinely needs an
- * edge (a chart plot, a dense table). One hairline, no radius, no shadow.
+ * A paired row of sections — the 60/40 spread the reporting pack is built on.
+ * One rule runs across both columns and a hairline divides them, so the two
+ * read as one spread rather than two stacked modules.
  */
-export function Exhibit({
-  children, className,
-}: { children: ReactNode; className?: string }) {
+export function SectionRow({
+  children, className, split = "60/40",
+}: {
+  children: ReactNode;
+  className?: string;
+  split?: "60/40" | "50/50";
+}) {
   return (
-    <div className={cn("border border-subtle bg-panel p-4 min-w-0", className)}>
-      {children}
+    <div className="border-t border-strong">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-x-10 gap-y-9 pt-4",
+          split === "60/40"
+            ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+            : "lg:grid-cols-2",
+          // The divider is a rule on the second column, so it disappears with
+          // the columns when the row stacks at laptop width and below.
+          "[&>*:nth-child(2)]:lg:border-l [&>*:nth-child(2)]:lg:border-subtle",
+          "[&>*:nth-child(2)]:lg:pl-10",
+          className,
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }

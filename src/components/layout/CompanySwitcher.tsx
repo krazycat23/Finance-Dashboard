@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/Select";
  * activation schema version".
  */
 export function CompanySwitcher() {
-  const { dataset, workspace, companies, switchCompany } = useReportingDataController();
+  const { workspace, companies, switchCompany } = useReportingDataController();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -25,12 +25,13 @@ export function CompanySwitcher() {
   ];
 
   return (
-    <div className="flex items-end gap-3 min-w-0">
+    <div className="flex items-center gap-3 min-w-0 shrink-0">
       <Select
+        variant="chip"
         label="Reporting company"
+        displayLabel="Company"
         value={workspace?.company.id ?? "demo"}
         options={options}
-        width="w-[196px]"
         disabled={busy}
         onChange={(value) => {
           setBusy(true);
@@ -39,11 +40,8 @@ export function CompanySwitcher() {
             .finally(() => setBusy(false));
         }}
       />
-      <span className="type-caption pb-[7px] whitespace-nowrap">
-        {dataset.profile.reportingCurrency} · {dataset.profile.companyName}
-      </span>
       {error && (
-        <span role="alert" className="type-caption pb-[7px] text-negative">
+        <span role="alert" className="type-caption text-negative">
           {error}
         </span>
       )}

@@ -9,9 +9,9 @@ import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
  * ---------------------------------------------------------------------------
  * Entity, basis and period, applied across every page.
  *
- * Each control carries a micro-label. An unlabelled dropdown reading "Group"
- * is a noun, not a filter: the reader has to infer what dimension it belongs
- * to. Three characters of label removes the guess.
+ * Set as chips on the control bar so the four global filters read as one line
+ * of reporting context. Each still carries its label inline: an unlabelled
+ * dropdown reading "Group" is a noun, not a filter.
  */
 
 const BASIS_OPTIONS: { value: PeriodBasis; label: string }[] = [
@@ -44,28 +44,16 @@ export function GlobalFilters() {
   );
 
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex items-center gap-2 shrink-0">
+      <Select variant="chip" label="Entity" value={entityId} options={entityOptions} onChange={setEntityId} />
       <Select
-        label="Entity"
-        value={entityId}
-        options={entityOptions}
-        onChange={setEntityId}
-        width="w-[164px]"
-      />
-      <Select
+        variant="chip"
         label="Basis"
         value={basis}
         options={BASIS_OPTIONS}
         onChange={(value) => setBasis(value as PeriodBasis)}
-        width="w-[152px]"
       />
-      <Select
-        label="Period"
-        value={periodId}
-        options={periodOptions}
-        onChange={setPeriodId}
-        width="w-[124px]"
-      />
+      <Select variant="chip" label="Period" value={periodId} options={periodOptions} onChange={setPeriodId} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function AppShell() {
       <Sidebar />
       <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto">
         <TopBar />
-        <div className="max-w-[1760px] mx-auto px-6 lg:px-8 pt-6 pb-20">
+        <div className="max-w-[1760px] mx-auto px-8 lg:px-12 pt-7 pb-24">
           <Outlet />
         </div>
       </main>

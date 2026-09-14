@@ -2,19 +2,18 @@ import { useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { numberedNavigation } from "@/config/navigation";
+import { EditorialPlate } from "@/components/brand/EditorialPlate";
 import { cn } from "@/utils/cn";
 
 /**
  * SIDEBAR — NORTH HOUSE
  * ---------------------------------------------------------------------------
- * A contents page, not a toolbar. Each destination carries an editorial
- * numeral and a label; icons are dropped entirely, because eleven glyphs in a
- * column is decoration a finance reader never uses to navigate.
+ * A contents page, not a toolbar: a masthead, an editorially numbered index,
+ * and a plate at the foot carrying the company's own line. Icons are dropped
+ * entirely — eleven glyphs in a column is decoration a finance reader never
+ * uses to navigate, and the numerals give them a stable index instead.
  *
- * The active state is a left rule plus weight — it survives both themes
- * without relying on a coloured pill.
- *
- * The numeral is aria-hidden: the accessible name of each link stays the plain
+ * The numeral is aria-hidden, so each link's accessible name stays the plain
  * destination ("Sales"), which is what a screen-reader user asks for.
  */
 export function Sidebar() {
@@ -24,21 +23,19 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Primary"
-      className="w-[216px] shrink-0 bg-nav border-r border-line flex flex-col h-screen sticky top-0"
+      className="w-[232px] shrink-0 bg-nav border-r border-line flex flex-col h-screen sticky top-0"
     >
-      <div className="px-5 h-[58px] flex flex-col justify-center border-b border-line shrink-0">
-        <span className="font-serif text-[15px] leading-none tracking-[0.01em] text-primary truncate">
+      <div className="px-6 pt-6 pb-5">
+        <div className="font-serif text-[19px] leading-[1.1] tracking-[-0.01em] text-primary">
           {profile.shortName ?? profile.companyName}
-        </span>
-        <span className="eyebrow mt-[5px]">Reporting</span>
+        </div>
+        <div className="eyebrow mt-2.5 leading-[1.6]">{profile.tagline}</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-5">
+      <div className="flex-1 overflow-y-auto pb-5 min-h-0">
         {groups.map((group) => (
           <div key={group.id} className="mb-6 last:mb-0">
-            {group.label && (
-              <div className="eyebrow px-5 mb-2">{group.label}</div>
-            )}
+            {group.label && <div className="eyebrow px-6 mb-2">{group.label}</div>}
             <ul className="flex flex-col">
               {group.items.map((item) => (
                 <li key={item.id}>
@@ -47,7 +44,7 @@ export function Sidebar() {
                     end={item.path === "/"}
                     className={({ isActive }) =>
                       cn(
-                        "group flex items-baseline gap-2.5 pl-5 pr-4 py-[7px]",
+                        "group flex items-baseline gap-3 pl-6 pr-4 py-[7px]",
                         "type-control border-l-2 transition-colors",
                         isActive
                           ? "border-l-accent bg-panel text-primary font-semibold"
@@ -77,14 +74,15 @@ export function Sidebar() {
         ))}
       </div>
 
-      <div className="px-5 py-3.5 border-t border-line shrink-0">
-        <div className="type-caption leading-snug">
-          {profile.companyName} · {profile.tagline}
+      {/* The foot plate: the company's own line, set as the colophon of the
+          pack rather than as a status bar. */}
+      <EditorialPlate align="bottom" className="h-[186px] shrink-0 border-t border-line">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.15em] leading-[1.9]">
+          {profile.companyName}
+          <br />
+          <span className="opacity-60">Reporting currency {profile.reportingCurrency}</span>
         </div>
-        <div className="type-caption mt-0.5">
-          Reporting currency {profile.reportingCurrency}
-        </div>
-      </div>
+      </EditorialPlate>
     </nav>
   );
 }

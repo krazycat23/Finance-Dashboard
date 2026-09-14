@@ -29,10 +29,10 @@ export function KpiBand({ data, emphasiseFirst, className }: KpiBandProps) {
   return (
     <div
       className={cn(
-        // Thin vertical separators come from the cell borders, so the band
-        // reflows cleanly at laptop and tablet widths without losing them.
-        "grid gap-y-6 border-y border-strong py-5",
-        "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
+        // One band, divided by hairlines. The rules belong to the cells, so the
+        // band reflows at laptop and tablet widths without losing them.
+        "grid border-y border-strong",
+        "grid-cols-2 lg:grid-cols-4",
         className,
       )}
     >
@@ -42,12 +42,12 @@ export function KpiBand({ data, emphasiseFirst, className }: KpiBandProps) {
           datum={datum}
           lead={emphasiseFirst && index === 0}
           className={cn(
-            "px-5 first:pl-0",
-            // A rule before every cell except the first in each row.
-            "border-l border-subtle",
-            index % 2 === 0 && "border-l-0 pl-0 md:border-l md:pl-5",
-            index % 3 === 0 && "md:border-l-0 md:pl-0 xl:border-l xl:pl-5",
-            index % 5 === 0 && "xl:border-l-0 xl:pl-0",
+            "py-6 px-7 border-l border-subtle",
+            // No rule before the first cell of a row, at either column count.
+            index % 2 === 0 && "border-l-0 pl-0 lg:border-l lg:pl-7",
+            index % 4 === 0 && "lg:border-l-0 lg:pl-0",
+            // The stacked row at phone and tablet widths needs its own divider.
+            index > 1 && "border-t border-subtle lg:border-t-0",
           )}
         />
       ))}
@@ -64,18 +64,15 @@ function KpiFigure({
     <div className={cn("flex flex-col min-w-0", className)}>
       <span className="type-label">{metric.shortName ?? metric.name}</span>
 
-      <span className={cn("type-kpi mt-2", lead ? "type-kpi-lead" : "type-kpi-sm")}>
+      <span className={cn("type-kpi mt-3.5", lead ? "type-kpi-lead" : "type-kpi")}>
         {formatMetric(value, metric)}
       </span>
 
       {/* One comparative per line, in a fixed order, so every figure in the
-          band has the same height whatever its labels say. They are set to be
-          read, not merely available: the movement carries the sentiment colour
-          and the qualifier sits in secondary rather than tertiary — still a
-          clear step below the figure above them. */}
-      <div className="flex flex-col gap-[2px] mt-2.5">
+          band has the same height whatever its labels say. */}
+      <div className="flex flex-col gap-[2px] mt-3">
         {variance ? (
-          <VarianceValue variance={variance} label={comparisonLabel} size="sm">
+          <VarianceValue variance={variance} label={comparisonLabel} size="md">
             {formatMetricDelta(variance.absolute, variance.relative, metric)}
           </VarianceValue>
         ) : (

@@ -62,7 +62,7 @@
   /* 04 — KPI figure. Serif, tabular, optically aligned across the band. */
   .type-kpi {
     font-family: var(--font-display-family);
-    font-size: 30px;
+    font-size: 34px;
     line-height: 1.02;
     letter-spacing: -0.02em;
     font-weight: 500;
@@ -71,7 +71,7 @@
     color: var(--text-primary);
   }
   .type-kpi-lead {
-    font-size: 38px;
+    font-size: 40px;
   }
   .type-kpi-sm {
     font-size: 23px;

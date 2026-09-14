@@ -135,6 +135,15 @@
     color: var(--text-primary);
   }
 
+  /* The control bar may scroll on a narrow screen, but never shows a bar
+     doing it — a scrollbar across the filters reads as a defect. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* A hairline that reads as an editorial rule rather than a table border. */
   .rule-hair {
     border-top: 1px solid var(--border-subtle);

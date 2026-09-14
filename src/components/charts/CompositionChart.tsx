@@ -36,10 +36,13 @@ interface CompositionChartProps {
   centreLabel?: string;
   height?: number;
   className?: string;
+  /** Ground the chart sits on, so the ring separators match behind it. */
+  surface?: "panel" | "canvas";
 }
 
 export function CompositionChart({
   slices, mode = "categorical", centreValue, centreLabel, height = 200, className,
+  surface = "panel",
 }: CompositionChartProps) {
   const tokens = useChartTokens();
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
@@ -58,7 +61,7 @@ export function CompositionChart({
   }));
 
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-[minmax(0,180px)_1fr] gap-5 items-center", className)}>
+    <div className={cn("grid grid-cols-1 sm:grid-cols-[minmax(0,170px)_1fr] gap-6 items-center", className)}>
       <div className="relative" style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -72,7 +75,7 @@ export function CompositionChart({
               startAngle={90}
               endAngle={-270}
               isAnimationActive={false}
-              stroke={tokens["surface-panel"]}
+              stroke={surface === "canvas" ? tokens["surface-canvas"] : tokens["surface-panel"]}
               strokeWidth={2}
             >
               {data.map((slice) => (
@@ -98,7 +101,7 @@ export function CompositionChart({
         </ResponsiveContainer>
         {centreValue && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[17px] font-semibold text-primary tnum tracking-[-0.01em]">
+            <span className="font-serif text-[19px] font-medium text-primary tnum tracking-[-0.015em]">
               {centreValue}
             </span>
             {centreLabel && (
