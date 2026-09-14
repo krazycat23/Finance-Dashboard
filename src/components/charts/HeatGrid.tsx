@@ -73,7 +73,7 @@ export function HeatGrid({ rows, totalLabel = "YTD", className }: HeatGridProps)
                   return (
                     <td key={cell.id} className="py-1 px-[2px]">
                       <div
-                        className="h-[26px] rounded-[2px] flex items-center justify-center"
+                        className="h-[26px] flex items-center justify-center"
                         style={{ backgroundColor: background, opacity }}
                         title={`${row.label}, ${cell.label}: ${cell.value === undefined ? "no data" : formatPercentage(cell.value)}`}
                       >
@@ -102,7 +102,7 @@ export function HeatGrid({ rows, totalLabel = "YTD", className }: HeatGridProps)
       {/* Explicit scale. A heat grid without one is decoration. */}
       <div className="flex items-center gap-2.5 text-[10px] text-tertiary">
         <span className="tnum">{formatPercentage(-bound, { precision: 0 })}</span>
-        <div className="flex-1 max-w-[180px] h-[6px] rounded-[2px] overflow-hidden flex">
+        <div className="flex-1 max-w-[180px] h-[6px] overflow-hidden flex">
           {Array.from({ length: 11 }, (_, i) => {
             const value = -bound + (i / 10) * bound * 2;
             const { background, opacity } = divergingFill(value, bound, tokens);

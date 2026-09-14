@@ -36,10 +36,14 @@ interface StatementTableProps {
   className?: string;
 }
 
+/**
+ * Subtotals and totals are marked by a rule and by weight, never by a colour
+ * wash: a filled row in a statement reads as a status, which it is not.
+ */
 const EMPHASIS_CLASS: Record<StatementRow["emphasis"], string> = {
   detail: "",
   subtotal: "font-semibold border-t border-line",
-  total: "font-semibold border-t-2 border-strong bg-inset/40",
+  total: "font-semibold border-t border-strong",
 };
 
 export function StatementTable({

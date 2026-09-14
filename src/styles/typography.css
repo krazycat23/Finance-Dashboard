@@ -1,0 +1,137 @@
+/* ---------------------------------------------------------------------------
+   NORTH HOUSE — TYPOGRAPHY SYSTEM
+   ---------------------------------------------------------------------------
+   Two faces, eight roles, defined once.
+
+     DISPLAY / EDITORIAL  Source Serif 4 — page titles, the performance
+                          headline, KPI figures and section numerals. A text
+                          serif drawn for long-form reading, so it carries an
+                          annual-report voice without becoming decorative.
+
+     UI / FINANCE         IBM Plex Sans — navigation, controls, filters,
+                          labels, tables. Chosen over the Inter-style default
+                          because its figures are unambiguous at 11px and its
+                          tabular set is genuinely monospaced in width, which
+                          is what a statement column needs.
+
+   Every role below is a class. Components use the class, never a raw
+   font-size/weight pair, so the scale can be retuned in one place.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  /* 01 — Display. The company/period lead on a report cover. Used once a page. */
+  .type-display {
+    font-family: var(--font-display-family);
+    font-size: clamp(30px, 2.5vw, 38px);
+    line-height: 1.1;
+    letter-spacing: -0.018em;
+    font-weight: 400;
+    color: var(--text-primary);
+  }
+
+  /* 02 — Heading. Page title. */
+  .type-heading {
+    font-family: var(--font-display-family);
+    font-size: 25px;
+    line-height: 1.16;
+    letter-spacing: -0.014em;
+    font-weight: 400;
+    color: var(--text-primary);
+  }
+
+  /* 03 — Section heading. Sits against a numeral and a rule. */
+  .type-section {
+    font-family: var(--font-display-family);
+    font-size: 16px;
+    line-height: 1.25;
+    letter-spacing: -0.008em;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  /* 03b — Section numeral. Editorial "01", set quiet and wide. */
+  .type-section-number {
+    font-family: var(--font-ui-family);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--text-tertiary);
+  }
+
+  /* 04 — KPI figure. Serif, tabular, optically aligned across the band. */
+  .type-kpi {
+    font-family: var(--font-display-family);
+    font-size: 30px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    color: var(--text-primary);
+  }
+  .type-kpi-lead {
+    font-size: 38px;
+  }
+  .type-kpi-sm {
+    font-size: 23px;
+  }
+
+  /* 05 — Body. Commentary and descriptive prose. */
+  .type-body {
+    font-family: var(--font-ui-family);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .type-body-lead {
+    font-family: var(--font-ui-family);
+    font-size: 14px;
+    line-height: 1.62;
+    color: var(--text-secondary);
+  }
+
+  /* 06 — Table. Dense, aligned, tabular by default. */
+  .type-table {
+    font-family: var(--font-ui-family);
+    font-size: 12px;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+  .type-table-head {
+    font-family: var(--font-ui-family);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  /* 07 — Caption. Units, footnotes, provenance. */
+  .type-caption {
+    font-family: var(--font-ui-family);
+    font-size: 10.5px;
+    line-height: 1.45;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* 08 — Control. Buttons, selects, tabs, nav. */
+  .type-control {
+    font-family: var(--font-ui-family);
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 500;
+    letter-spacing: 0.002em;
+    color: var(--text-primary);
+  }
+  .type-label {
+    font-family: var(--font-ui-family);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+}

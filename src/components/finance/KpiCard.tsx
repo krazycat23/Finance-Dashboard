@@ -31,7 +31,7 @@ export function KpiCard({ datum, emphasis, onClick, className }: KpiCardProps) {
     <Element
       {...(interactive ? { type: "button" as const, onClick } : {})}
       className={cn(
-        "bg-panel border border-subtle rounded-[4px] px-3.5 py-3 text-left",
+        "bg-panel border border-subtle px-3.5 py-3 text-left",
         "flex flex-col gap-2 min-w-0",
         interactive && "hover:border-strong transition-colors cursor-pointer",
         emphasis && "border-strong",

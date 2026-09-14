@@ -111,11 +111,17 @@ export function divergingFill(
   };
 }
 
-/** Shared axis and grid configuration, so every chart lines up. */
+/**
+ * Shared axis and grid configuration, so every chart lines up.
+ *
+ * North House charts are drawn like a printed exhibit: horizontal gridlines
+ * only, a hairline baseline, no tick marks, and axis text at caption size in
+ * the UI face so it never competes with the figures it labels.
+ */
 export function axisProps(tokens: ChartTokens) {
   return {
-    tick: { fill: tokens["axis-text"], fontSize: 11 },
+    tick: { fill: tokens["axis-text"], fontSize: 10.5, fontWeight: 500 },
     tickLine: false,
-    axisLine: { stroke: tokens["border-subtle"] },
+    axisLine: { stroke: tokens["border-default"], strokeWidth: 1 },
   } as const;
 }

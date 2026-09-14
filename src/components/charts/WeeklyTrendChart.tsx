@@ -40,7 +40,7 @@ export function WeeklyTrendChart({
     <ChartFrame unit={axisUnitLabel(scale)} legend={legend} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={rows} margin={{ top: 6, right: 4, bottom: 0, left: -8 }}>
-          <CartesianGrid stroke={tokens["grid-line"]} vertical={false} />
+          <CartesianGrid stroke={tokens["grid-line"]} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="label"
             {...axisProps(tokens)}
@@ -71,8 +71,8 @@ export function WeeklyTrendChart({
               );
             }}
           />
-          <Bar dataKey="priorYear" fill={tokens["series-5"]} radius={[1, 1, 0, 0]} maxBarSize={9} isAnimationActive={false} />
-          <Bar dataKey="revenue" fill={tokens["series-1"]} radius={[1, 1, 0, 0]} maxBarSize={9} isAnimationActive={false} />
+          <Bar dataKey="priorYear" fill={tokens["series-5"]} maxBarSize={9} isAnimationActive={false} />
+          <Bar dataKey="revenue" fill={tokens["series-1"]} maxBarSize={9} isAnimationActive={false} />
           <Line
             dataKey="budget"
             stroke={tokens["series-reference"]}

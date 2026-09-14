@@ -1,12 +1,14 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { Sidebar } from "./Sidebar";
-import { CompanySwitcher } from "./CompanySwitcher";
+import { TopBar } from "./TopBar";
 
 /**
- * APP SHELL
+ * APP SHELL — NORTH HOUSE
  * ---------------------------------------------------------------------------
- * Persistent navigation with a scrolling content region.
+ *   left    numbered navigation, persistent
+ *   top     the control bar: company, filters, theme
+ *   main    the reporting canvas
  *
  * The content column is capped so that on a 2560px display the tables do not
  * stretch to unreadable line lengths, while still giving a 1440px executive
@@ -25,8 +27,8 @@ export function AppShell() {
     <div className="flex min-h-screen bg-canvas">
       <Sidebar />
       <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto">
-        <div className="max-w-[1760px] mx-auto px-6 lg:px-8 py-7 pb-16">
-          <CompanySwitcher />
+        <TopBar />
+        <div className="max-w-[1760px] mx-auto px-6 lg:px-8 pt-8 pb-20">
           <Outlet />
         </div>
       </main>
@@ -34,7 +36,10 @@ export function AppShell() {
   );
 }
 
-/** Standard vertical rhythm for a page's sections. */
+/**
+ * Standard vertical rhythm for a page's sections. Sections are separated by
+ * space and rules rather than by floating cards, so the gap is generous.
+ */
 export function PageSections({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-5 mt-7">{children}</div>;
+  return <div className="flex flex-col gap-10 mt-8">{children}</div>;
 }

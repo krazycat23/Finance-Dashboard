@@ -15,15 +15,15 @@ export function Meter({
 }) {
   const pct = max === 0 ? 0 : Math.min(100, Math.max(0, (Math.abs(value) / max) * 100));
   const fill = {
-    accent: "bg-[var(--series-2)]",
+    accent: "bg-[var(--series-1)]",
     positive: "bg-positive",
     negative: "bg-negative",
     neutral: "bg-[var(--series-3)]",
   }[tone];
 
   return (
-    <div className={cn("h-[6px] bg-inset rounded-[2px] overflow-hidden", className)}>
-      <div className={cn("h-full rounded-[2px]", fill)} style={{ width: `${pct}%` }} />
+    <div className={cn("h-[5px] bg-[var(--fill-muted)] overflow-hidden", className)}>
+      <div className={cn("h-full", fill)} style={{ width: `${pct}%` }} />
     </div>
   );
 }

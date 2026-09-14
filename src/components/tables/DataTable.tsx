@@ -9,6 +9,12 @@ import { cn } from "@/utils/cn";
  * figures, hover, and the horizontal-scroll container that keeps a wide table
  * from forcing the page to scroll sideways.
  *
+ * North House treatment: a rule under the header, hairline separators between
+ * rows and nothing else. No vertical grid, no zebra, no boxed cells — a
+ * financial table is read down a column, and a full grid fights that. Column
+ * groups (actual | budget | variance) are separated by a single hairline so the
+ * eye can find the break without the table becoming a spreadsheet.
+ *
  * Columns declare their own alignment and rendering; the table never inspects
  * the data.
  */
@@ -53,7 +59,7 @@ export function DataTable<T>({
   minWidth = 640, empty,
 }: DataTableProps<T>) {
   if (rows.length === 0 && empty) {
-    return <div className="py-10 text-center text-[12px] text-tertiary">{empty}</div>;
+    return <div className="py-10 text-center type-caption">{empty}</div>;
   }
 
   return (
@@ -61,22 +67,22 @@ export function DataTable<T>({
     <div className={cn("overflow-x-auto -mx-4 px-4", className)}>
       <table className="w-full border-collapse" style={{ minWidth }}>
         <thead className={cn(stickyHeader && "sticky top-0 bg-panel z-10")}>
-          <tr className="border-b border-line">
+          <tr className="border-b border-strong">
             {columns.map((column) => (
               <th
                 key={column.id}
                 scope="col"
                 style={column.width ? { width: column.width } : undefined}
                 className={cn(
-                  "py-2 px-2.5 font-medium text-[10.5px] uppercase tracking-[0.07em]",
-                  "text-tertiary align-bottom whitespace-nowrap",
+                  "pt-1 pb-2 px-2.5 type-table-head",
+                  "align-bottom whitespace-nowrap",
                   ALIGN_CLASS[column.align ?? "left"],
                   column.groupStart && "border-l border-subtle",
                 )}
               >
                 <div>{column.header}</div>
                 {column.subHeader && (
-                  <div className="font-normal normal-case tracking-normal text-[10px] mt-0.5 opacity-80">
+                  <div className="font-normal normal-case tracking-normal text-[9.5px] mt-[3px] opacity-85">
                     {column.subHeader}
                   </div>
                 )}
@@ -90,7 +96,7 @@ export function DataTable<T>({
               key={rowKey(row, index)}
               className={cn(
                 "border-b border-subtle last:border-b-0",
-                "hover:bg-inset/60 transition-colors",
+                "hover:bg-inset/70 transition-colors",
                 rowClassName?.(row, index),
               )}
             >
@@ -98,7 +104,7 @@ export function DataTable<T>({
                 <td
                   key={column.id}
                   className={cn(
-                    "py-[7px] px-2.5 text-[12px] align-middle",
+                    "py-[7px] px-2.5 type-table align-middle",
                     column.align === "right" && "tnum",
                     ALIGN_CLASS[column.align ?? "left"],
                     column.groupStart && "border-l border-subtle",

@@ -4,7 +4,22 @@ import {
 } from "react";
 import { useReportingDataset } from "./ReportingDataProvider";
 
-export type ThemeMode = "light" | "dark";
+/**
+ * THEME
+ * ---------------------------------------------------------------------------
+ * Two valuations of one design system:
+ *
+ *   sand      North House — Sand      warm ivory canvas, deep forest, stone
+ *   obsidian  North House — Obsidian  near-black charcoal, ivory type, bronze
+ *
+ * There is exactly one set of components; the theme only changes token values.
+ */
+export type ThemeMode = "sand" | "obsidian";
+
+export const THEME_LABELS: Record<ThemeMode, string> = {
+  sand: "Sand",
+  obsidian: "Obsidian",
+};
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -16,14 +31,25 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const STORAGE_KEY = "reporting-engine:theme";
 
-function readInitialTheme(defaultTheme: ThemeMode = "light"): ThemeMode {
+/**
+ * Company profiles (and any preference stored before the North House rebrand)
+ * speak in light/dark. They map onto the two themes rather than being rejected,
+ * so an existing preference survives the redesign.
+ */
+function normaliseTheme(value: string | null | undefined): ThemeMode | undefined {
+  if (value === "sand" || value === "light") return "sand";
+  if (value === "obsidian" || value === "dark") return "obsidian";
+  return undefined;
+}
+
+function readInitialTheme(defaultTheme: string | undefined): ThemeMode {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    const stored = normaliseTheme(localStorage.getItem(STORAGE_KEY));
+    if (stored) return stored;
   } catch {
     // Private browsing or blocked storage: fall through to the configured default.
   }
-  return defaultTheme;
+  return normaliseTheme(defaultTheme) ?? "sand";
 }
 
 /**
@@ -46,7 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: ThemeMode) => setThemeState(next), []);
   const toggleTheme = useCallback(
-    () => setThemeState((t) => (t === "light" ? "dark" : "light")),
+    () => setThemeState((t) => (t === "sand" ? "obsidian" : "sand")),
     [],
   );
 

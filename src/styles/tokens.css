@@ -1,174 +1,202 @@
 /* ---------------------------------------------------------------------------
-   SEMANTIC DESIGN TOKENS
+   NORTH HOUSE — DESIGN TOKENS
    ---------------------------------------------------------------------------
-   Light and dark are defined as two valuations of ONE semantic vocabulary.
-   Components never reference a raw colour; they reference a role
-   (surface-panel, text-secondary, series-2). Swapping theme swaps values on
-   <html data-theme>, so DOM and SVG charts change in the same paint.
+   Two themes, ONE vocabulary.
+
+     North House — Sand      (primary)   [data-theme="sand"]   alias: "light"
+     North House — Obsidian  (secondary) [data-theme="obsidian"] alias: "dark"
+
+   Obsidian is not an inversion of Sand. Each theme selects its own values for
+   the same semantic roles: Sand is warm ivory, deep forest and stone; Obsidian
+   is near-black charcoal, warm ivory type and a bronze accent. Component code
+   never names a colour — it names a role (surface-panel, text-secondary,
+   series-2), so both themes render the same components.
 
    COLOUR RULEBOOK
    - --positive / --negative are SEMANTIC ONLY: variance and favourability.
      They are never used as a chart series colour.
-   - --series-* carry data series. They are navy/slate/blue — deliberately
-     low-chroma so that the only saturated colour on a page is meaningful.
+   - --series-* carry data series. They are deliberately low-chroma so that the
+     only saturated colour on a page is meaningful.
    - Direction (glyph) and sentiment (colour) are always encoded separately.
 --------------------------------------------------------------------------- */
 
 :root,
+[data-theme="sand"],
 [data-theme="light"] {
-  /* Surfaces — layered off-white, never pure white everywhere */
-  --surface-canvas: #f7f9fb;
-  --surface-panel: #ffffff;
+  /* -- Typography -------------------------------------------------------- */
+  --font-display-family: "Source Serif 4", "Iowan Old Style", Georgia,
+    "Times New Roman", serif;
+  --font-ui-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+
+  /* -- Surfaces ---------------------------------------------------------- */
+  /* Warm ivory canvas; panels sit a shade lighter, never pure white. */
+  --surface-canvas: #f4efe4;
+  --surface-panel: #fbf8f1;
   --surface-raised: #ffffff;
-  --surface-sunken: #f2f5f8;
-  --surface-nav: #ffffff;
-  --surface-inset: #eef2f6;
+  --surface-sunken: #ece5d6;
+  --surface-nav: #f0e9db;
+  --surface-inset: #e8e0cf;
+  /* Fills for quiet magnitude bars and zebra bands. */
+  --fill-muted: #e2d9c6;
+  --fill-muted-strong: #d3c8b1;
 
-  /* Borders — carry structure instead of shadows */
-  --border-subtle: #e4eaf0;
-  --border-default: #d8e0e8;
-  --border-strong: #c3cedb;
+  /* -- Borders — structure is carried by rules, never by shadow ---------- */
+  --border-subtle: #e2dac9;
+  --border-default: #d0c5ae;
+  --border-strong: #b3a68b;
 
-  /* Text */
-  --text-primary: #132435;
-  --text-secondary: #526273;
-  --text-tertiary: #7c8b9c;
-  --text-inverse: #ffffff;
+  /* -- Text -------------------------------------------------------------- */
+  --text-primary: #1b211d;
+  --text-secondary: #565c52;
+  --text-tertiary: #857e6e;
+  --text-inverse: #fbf8f1;
 
-  /* Brand / interactive */
-  --accent: #132435;
-  --accent-hover: #0e1b28;
-  --accent-soft: #e9eef3;
-  --accent-on: #ffffff;
-  --focus-ring: #79a9d8;
+  /* -- Brand / interactive ----------------------------------------------- */
+  --accent: #1f3d2f; /* deep forest green */
+  --accent-hover: #162d23;
+  --accent-soft: #e2e7de;
+  --accent-on: #fbf8f1;
+  --accent-warm: #a9772f; /* subtle warm accent — brass */
+  --accent-warm-soft: #f2e7d2;
+  --focus-ring: #1f3d2f;
 
-  /* Semantic — variance only */
-  --positive: #1f9c63;
-  --positive-soft: #e4f4ec;
-  --negative: #d4504f;
-  --negative-soft: #fbeaea;
-  --caution: #b8842a;
-  --caution-soft: #f9f0dd;
-  --neutral: #526273;
-  --neutral-soft: #eef2f6;
+  /* -- Semantic — variance only ------------------------------------------ */
+  --positive: #2f6b47;
+  --positive-soft: #e1ebe1;
+  --negative: #9d3b30; /* restrained, muted red */
+  --negative-soft: #f2e2dd;
+  --caution: #8c6a1c;
+  --caution-soft: #f2e8d0;
+  --neutral: #565c52;
+  --neutral-soft: #e8e0cf;
 
-  /* Chart series — restrained, ordered by emphasis */
-  --series-1: #132435; /* primary / actual */
-  --series-2: #79a9d8; /* comparison / prior year */
-  --series-3: #526273; /* tertiary */
-  --series-4: #a9c4dd;
-  --series-5: #bcc7d3;
-  --series-reference: #8b9aab; /* budget / plan lines */
+  /* -- Chart series — forest / stone, ordered by emphasis ---------------- */
+  --series-1: #1f3d2f; /* primary / actual */
+  --series-2: #6e8c74; /* comparison */
+  --series-3: #8a8477; /* tertiary / stone */
+  --series-4: #b0a894;
+  --series-5: #cfc6b1; /* muted comparison fill */
+  --series-reference: #8a7c5e; /* budget / plan lines */
 
+  /* --- Chart palettes ------------------------------------------------------
+     Colour does three different jobs, so there are three palettes.
 
-  /* --- Chart palettes -------------------------------------------------------
-     Three palettes, because colour does three different jobs here.
-
-     1. SERIES (scenario): actual vs last year vs budget. Not categorical —
-        the scenarios are ranked by emphasis, and identity is carried by FORM
-        (solid fill / muted fill / dashed line) as well as value, so the
-        low-chroma navy set is correct and stays restrained.
-     2. CATEGORICAL: genuine unordered members (channels, entities). Validated
-        with scripts/validate_palette.js — passes lightness band, chroma floor,
-        CVD separation, normal-vision floor and contrast against the surface.
-        Assigned in fixed order and never cycled.
-     3. SEQUENTIAL: magnitude (cost composition, share). One hue, light to dark,
-        validated as an ordinal ramp.
+     1. SERIES (scenario): actual vs last year vs budget. Ranked by emphasis,
+        not categorical — identity is carried by FORM (solid fill / muted fill /
+        dashed rule) as well as by value.
+     2. CATEGORICAL: genuine unordered members (channels, entities). Assigned in
+        fixed order and never cycled.
+     3. SEQUENTIAL: magnitude. One hue, light to dark, read as an ordinal ramp.
 
      Diverging uses the semantic positive/negative pair with a neutral midpoint
      and always ships the value in the cell, so colour is never the only
      encoding.
   --------------------------------------------------------------------------- */
-  --cat-1: #005b8c;
-  --cat-2: #158970;
-  --cat-3: #8b5e11;
-  --cat-4: #714688;
-  --cat-5: #3390b6;
+  --cat-1: #1f3d2f;
+  --cat-2: #7a5a2b;
+  --cat-3: #46646e;
+  --cat-4: #8c5347;
+  --cat-5: #5c6b48;
 
-  --seq-1: #0e2338;
-  --seq-2: #1a3a57;
-  --seq-3: #275279;
-  --seq-4: #376c97;
-  --seq-5: #4b87b3;
-  --seq-6: #65a0c6;
-  --seq-7: #8ab6d6;
+  --seq-1: #162d23;
+  --seq-2: #234937;
+  --seq-3: #31634b;
+  --seq-4: #477b60;
+  --seq-5: #6c9479;
+  --seq-6: #96b09c;
+  --seq-7: #c1cec2;
 
-  --diverging-negative: #c25f5c;
-  --diverging-neutral: #eef2f6;
-  --diverging-positive: #2f9a6b;
+  --diverging-negative: #9d3b30;
+  --diverging-neutral: #e8e0cf;
+  --diverging-positive: #2f6b47;
 
-  --grid-line: #e9eef3;
-  --axis-text: #7c8b9c;
+  --grid-line: #e3dbc9;
+  --axis-text: #857e6e;
 
-  /* Elevation — used sparingly, only for true overlays */
-  --shadow-overlay: 0 8px 24px -8px rgb(19 36 53 / 0.16),
-    0 2px 6px -2px rgb(19 36 53 / 0.08);
+  /* Elevation — reserved for true overlays only. */
+  --shadow-overlay: 0 10px 28px -12px rgb(27 33 29 / 0.24),
+    0 2px 6px -2px rgb(27 33 29 / 0.10);
 }
 
+[data-theme="obsidian"],
 [data-theme="dark"] {
-  /* Layered navy/slate, not black */
-  --surface-canvas: #0b1622;
-  --surface-panel: #0e1b28;
-  --surface-raised: #142333;
-  --surface-sunken: #0a131d;
-  --surface-nav: #0e1b28;
-  --surface-inset: #16273a;
+  --font-display-family: "Source Serif 4", "Iowan Old Style", Georgia,
+    "Times New Roman", serif;
+  --font-ui-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 
-  --border-subtle: #1d3145;
-  --border-default: #24394f;
-  --border-strong: #32495f;
+  /* Warm near-black, not a cold navy and not a flipped ivory. */
+  --surface-canvas: #131211;
+  --surface-panel: #191715;
+  --surface-raised: #1f1c19;
+  --surface-sunken: #0e0d0c;
+  --surface-nav: #161413;
+  --surface-inset: #221f1b;
+  --fill-muted: #27231f;
+  --fill-muted-strong: #342f28;
 
-  --text-primary: #e9eef3;
-  --text-secondary: #9aabbd;
-  --text-tertiary: #6e8298;
-  --text-inverse: #0e1b28;
+  /* Thin, low-contrast borders. */
+  --border-subtle: #2a2723;
+  --border-default: #36312a;
+  --border-strong: #4c453a;
 
-  --accent: #e9eef3;
-  --accent-hover: #ffffff;
-  --accent-soft: #1b2e42;
-  --accent-on: #0e1b28;
-  --focus-ring: #79a9d8;
+  --text-primary: #efe7d9; /* warm ivory */
+  --text-secondary: #a49b89;
+  --text-tertiary: #7b7364;
+  --text-inverse: #17150f;
 
-  --positive: #35c489;
-  --positive-soft: #11302a;
-  --negative: #ef7a7a;
-  --negative-soft: #34191d;
-  --caution: #d9a441;
-  --caution-soft: #33280f;
-  --neutral: #9aabbd;
-  --neutral-soft: #18293c;
+  --accent: #c08a4a; /* muted bronze */
+  --accent-hover: #d49e5d;
+  --accent-soft: #2a2118;
+  --accent-on: #17150f;
+  --accent-warm: #c08a4a;
+  --accent-warm-soft: #2a2118;
+  --focus-ring: #c08a4a;
 
-  --series-1: #c8d8e8;
-  --series-2: #79a9d8;
-  --series-3: #6e8298;
-  --series-4: #456d90;
-  --series-5: #2f4a66;
-  --series-reference: #8b9aab;
+  --positive: #85a56c; /* subtle olive */
+  --positive-soft: #1e2418;
+  --negative: #c2685c; /* restrained red */
+  --negative-soft: #2b1a17;
+  --caution: #c19a4c;
+  --caution-soft: #29210f;
+  --neutral: #a49b89;
+  --neutral-soft: #221f1b;
 
+  --series-1: #e4d7bf; /* ivory — primary / actual */
+  --series-2: #c08a4a; /* bronze — comparison */
+  --series-3: #8a9b72; /* olive — tertiary */
+  --series-4: #7b7364;
+  --series-5: #574f42; /* muted comparison fill */
+  --series-reference: #9a8f7a;
 
-  /* Dark mode is SELECTED, not flipped: each palette was re-validated against
-     the dark surface (#0e1b28) with that mode's narrower lightness band. */
-  --cat-1: #4097d1;
-  --cat-2: #078068;
-  --cat-3: #9b6b25;
-  --cat-4: #8f5f99;
-  --cat-5: #3b9ac2;
+  /* Obsidian is SELECTED, not flipped: each palette was re-picked against the
+     dark canvas (#191715) with that mode's narrower lightness band. */
+  --cat-1: #c08a4a;
+  --cat-2: #8fa378;
+  --cat-3: #6e93a8;
+  --cat-4: #c4867a;
+  --cat-5: #b4a98d;
 
-  --seq-1: #cfe0ee;
-  --seq-2: #a9c6de;
-  --seq-3: #87aecc;
-  --seq-4: #6795b8;
-  --seq-5: #4c7ca2;
-  --seq-6: #38648a;
-  --seq-7: #2a5172;
+  --seq-1: #f0e4cc;
+  --seq-2: #dcc9a5;
+  --seq-3: #c8ae80;
+  --seq-4: #b4935f;
+  --seq-5: #967645;
+  --seq-6: #765b34;
+  --seq-7: #574225;
 
-  --diverging-negative: #d4706d;
-  --diverging-neutral: #16273a;
-  --diverging-positive: #35a97a;
+  --diverging-negative: #c2685c;
+  --diverging-neutral: #221f1b;
+  --diverging-positive: #85a56c;
 
-  --grid-line: #1d3145;
-  --axis-text: #6e8298;
+  --grid-line: #262320;
+  --axis-text: #7b7364;
 
-  --shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.6),
-    0 2px 6px -2px rgb(0 0 0 / 0.4);
+  --shadow-overlay: 0 10px 28px -12px rgb(0 0 0 / 0.7),
+    0 2px 6px -2px rgb(0 0 0 / 0.5);
 }

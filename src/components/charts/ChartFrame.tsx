@@ -49,7 +49,7 @@ export function ChartLegend({ entries }: { entries: LegendEntry[] }) {
           ) : (
             <span
               aria-hidden
-              className="w-2.5 h-2.5 rounded-[2px] shrink-0"
+              className="w-2.5 h-2.5 shrink-0"
               style={{ backgroundColor: entry.colour }}
             />
           )}

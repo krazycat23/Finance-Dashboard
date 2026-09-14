@@ -137,7 +137,7 @@ export function WaterfallChart({
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={rows} margin={{ top: 14, right: 4, bottom: 0, left: -8 }}>
-          <CartesianGrid stroke={tokens["grid-line"]} vertical={false} />
+          <CartesianGrid stroke={tokens["grid-line"]} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="label"
             {...axisProps(tokens)}
@@ -183,7 +183,7 @@ export function WaterfallChart({
           />
           {/* Transparent spacer carrying each bar to its starting height. */}
           <Bar dataKey="base" stackId="bridge" fill="transparent" isAnimationActive={false} />
-          <Bar dataKey="magnitude" stackId="bridge" radius={[2, 2, 0, 0]} maxBarSize={46} isAnimationActive={false}>
+          <Bar dataKey="magnitude" stackId="bridge" maxBarSize={46} isAnimationActive={false}>
             {rows.map((row, index) => (
               <Cell key={index} fill={colourFor(row)} />
             ))}

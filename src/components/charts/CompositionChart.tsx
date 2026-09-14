@@ -130,7 +130,7 @@ export function CompositionChart({
                 <span className="flex items-center gap-2 min-w-0">
                   <span
                     aria-hidden
-                    className="w-2 h-2 rounded-[2px] shrink-0"
+                    className="w-2 h-2 shrink-0"
                     style={{ backgroundColor: slice.colour }}
                   />
                   <span className="text-[12px] text-primary truncate">{slice.label}</span>

@@ -4,9 +4,9 @@ import { cn } from "@/utils/cn";
 /**
  * PANEL
  * ---------------------------------------------------------------------------
- * The one container in the product. It reads as a report section — a hairline
- * border, a 4px radius, no shadow — rather than a floating card. Elevation is
- * reserved for true overlays.
+ * The one container in the product. Under North House it reads as a block of a
+ * printed report — square corners, a hairline rule, no shadow and no radius —
+ * rather than a floating card. Elevation is reserved for true overlays.
  */
 
 interface PanelProps {
@@ -20,7 +20,7 @@ export function Panel({ children, className, flush }: PanelProps) {
   return (
     <section
       className={cn(
-        "bg-panel border border-subtle rounded-[4px] flex flex-col min-w-0",
+        "bg-panel border border-subtle flex flex-col min-w-0",
         className,
       )}
     >
@@ -52,11 +52,11 @@ export function PanelHeader({
         <div className="flex items-baseline gap-2">
           <h2 className="panel-title truncate">{title}</h2>
           {meta && (
-            <span className="text-[11px] text-tertiary tnum whitespace-nowrap">{meta}</span>
+            <span className="type-caption whitespace-nowrap">{meta}</span>
           )}
         </div>
         {description && (
-          <p className="text-[11.5px] text-secondary mt-0.5 leading-snug">{description}</p>
+          <p className="type-caption mt-1 leading-snug">{description}</p>
         )}
       </div>
       {actions && <div className="shrink-0 flex items-center gap-1.5">{actions}</div>}

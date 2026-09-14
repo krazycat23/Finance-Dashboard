@@ -28,7 +28,7 @@ export function TooltipShell({
   return (
     <div
       className={cn(
-        "bg-panel border border-line rounded-[4px] px-3 py-2.5 min-w-[168px]",
+        "bg-panel border border-line px-3 py-2.5 min-w-[168px]",
         "shadow-[var(--shadow-overlay)]",
         className,
       )}
@@ -51,7 +51,7 @@ export function TooltipShell({
                 ) : (
                   <span
                     aria-hidden
-                    className="w-2 h-2 rounded-[2px] shrink-0"
+                    className="w-2 h-2 shrink-0"
                     style={{ backgroundColor: row.colour }}
                   />
                 )

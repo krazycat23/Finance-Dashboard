@@ -18,6 +18,12 @@ export interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  /**
+   * Editorial numeral shown beside the label ("01 Overview"). Assigned once,
+   * in document order, by `numberedNavigation()` — never hand-maintained, so
+   * reordering a group cannot leave two items sharing a number.
+   */
+  ordinal?: string;
 }
 
 export interface NavGroup {
@@ -29,6 +35,8 @@ export interface NavGroup {
 /**
  * Grouped rather than a flat list of eleven: an executive scans by category.
  * Groups are configuration, so a client can reorder or hide sections.
+ *
+ * Routes are unchanged by the North House redesign — only their presentation.
  */
 export const navigation: NavGroup[] = [
   {
@@ -67,3 +75,19 @@ export const navigation: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * Navigation with a running ordinal across every group, in document order.
+ * The numeral is decoration with a purpose: it gives a reader a stable index
+ * for a section ("see 04") the way a report's contents page does.
+ */
+export function numberedNavigation(groups: NavGroup[] = navigation): NavGroup[] {
+  let counter = 0;
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => {
+      counter += 1;
+      return { ...item, ordinal: String(counter).padStart(2, "0") };
+    }),
+  }));
+}

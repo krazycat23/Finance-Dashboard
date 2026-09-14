@@ -82,7 +82,7 @@ export function ColumnChart({
     <ChartFrame unit={unitCaption} legend={legend} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -8 }}>
-          <CartesianGrid stroke={tokens["grid-line"]} vertical={false} />
+          <CartesianGrid stroke={tokens["grid-line"]} strokeWidth={1} vertical={false} />
           <XAxis dataKey="label" {...axisProps(tokens)} interval={0} tick={{ fill: tokens["axis-text"], fontSize: 10 }} />
           <YAxis
             {...axisProps(tokens)}
@@ -114,9 +114,9 @@ export function ColumnChart({
             }}
           />
           {hasComparison && (
-            <Bar dataKey="comparison" fill={tokens["series-5"]} radius={[2, 2, 0, 0]} maxBarSize={26} isAnimationActive={false} />
+            <Bar dataKey="comparison" fill={tokens["series-5"]} maxBarSize={26} isAnimationActive={false} />
           )}
-          <Bar dataKey="value" radius={[2, 2, 0, 0]} maxBarSize={26} isAnimationActive={false}>
+          <Bar dataKey="value" maxBarSize={26} isAnimationActive={false}>
             {data.map((point) => (
               <Cell
                 key={point.id}

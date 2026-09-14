@@ -173,8 +173,7 @@ export function TrendChart({
             <Bar
               dataKey="priorYear"
               fill={tokens["series-5"]}
-              radius={[2, 2, 0, 0]}
-              maxBarSize={22}
+                            maxBarSize={22}
               isAnimationActive={false}
             />
           )}
@@ -183,8 +182,7 @@ export function TrendChart({
             <Bar
               dataKey="actual"
               fill={tokens["series-1"]}
-              radius={[2, 2, 0, 0]}
-              maxBarSize={22}
+                            maxBarSize={22}
               isAnimationActive={false}
             />
           ) : (
@@ -203,8 +201,7 @@ export function TrendChart({
             <Bar
               dataKey="forecast"
               fill={tokens["series-2"]}
-              radius={[2, 2, 0, 0]}
-              maxBarSize={22}
+                            maxBarSize={22}
               isAnimationActive={false}
             />
           )}
