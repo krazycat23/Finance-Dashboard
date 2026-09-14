@@ -38,11 +38,17 @@ interface CompositionChartProps {
   className?: string;
   /** Ground the chart sits on, so the ring separators match behind it. */
   surface?: "panel" | "canvas";
+  /**
+   * Heading for the comparison column. The caller decides what the comparison
+   * IS, so it must also name it — a column headed "vs LY" that is fed a budget
+   * variance is a wrong label on a right number.
+   */
+  comparisonLabel?: string;
 }
 
 export function CompositionChart({
   slices, mode = "categorical", centreValue, centreLabel, height = 200, className,
-  surface = "panel",
+  surface = "panel", comparisonLabel = "vs LY",
 }: CompositionChartProps) {
   const tokens = useChartTokens();
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
@@ -122,7 +128,7 @@ export function CompositionChart({
               Share
             </th>
             <th className="text-right pb-1.5 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
-              vs LY
+              {comparisonLabel}
             </th>
           </tr>
         </thead>

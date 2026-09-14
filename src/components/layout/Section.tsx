@@ -72,15 +72,15 @@ export function SectionRow({
 }: {
   children: ReactNode;
   className?: string;
-  split?: "60/40" | "50/50";
+  split?: "60/40" | "40/60" | "50/50";
 }) {
   return (
     <div className="border-t border-strong">
       <div
         className={cn(
           "grid grid-cols-1 gap-x-10 gap-y-9 pt-4",
-          split === "60/40"
-            ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+          split === "60/40" ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+            : split === "40/60" ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.55fr)]"
             : "lg:grid-cols-2",
           // The divider is a rule on the second column, so it disappears with
           // the columns when the row stacks at laptop width and below.
@@ -91,6 +91,33 @@ export function SectionRow({
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * STATEMENT BAND
+ * ---------------------------------------------------------------------------
+ * A full-bleed band of the panel tone, used where a statement is the anchor of
+ * a page. It is not a card: no radius, no shadow, and it runs to the edges of
+ * the reading column so the page reads as a change of paper stock rather than
+ * as a box placed on a background.
+ *
+ * The tonal shift is what gives the statement its weight — an ivory leaf in
+ * Sand, a graphite one in Obsidian — without a border drawing a rectangle
+ * around the numbers.
+ */
+export function StatementBand({
+  children, className,
+}: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "-mx-8 lg:-mx-12 px-8 lg:px-12 py-8 bg-panel border-y border-subtle",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }

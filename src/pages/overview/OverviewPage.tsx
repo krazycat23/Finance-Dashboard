@@ -3,7 +3,7 @@ import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
 import { Section, SectionRow } from "@/components/layout/Section";
-import { EditorialPlate } from "@/components/brand/EditorialPlate";
+import { Masthead } from "@/components/layout/Masthead";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Meter } from "@/components/ui/Meter";
 import { KpiBand } from "@/components/finance/KpiBand";
@@ -176,57 +176,18 @@ function DemoOverviewPage() {
 
   return (
     <>
-      {/* MASTHEAD -------------------------------------------------------------
-          The statement, the commentary that supports it, and the plate. Three
-          columns divided by hairlines: 55 / 20 / 25, the proportions of a
-          report cover rather than of a dashboard header. */}
-      <header className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.95fr)] gap-x-9 gap-y-7">
-        <div className="min-w-0">
-          <div className="eyebrow">Overview</div>
-          <h1 className="type-display mt-3.5 max-w-[20ch]">
-            {headline.text ?? `${currentPeriod.label} results reported.`}
-          </h1>
-          <p className="type-body-lead mt-4 max-w-[52ch]">
-            {dataset.profile.companyName} · {currentPeriod.label} reporting pack. Group
-            results with variance to plan and to last year.
-          </p>
-        </div>
-
-        {insights.length > 0 && (
-          <div className="min-w-0 lg:border-l lg:border-subtle lg:pl-9">
-            <div className="eyebrow">Finance commentary</div>
-            <p className="font-serif text-[15px] leading-[1.5] text-primary mt-3.5">
-              {insights[0].text}
-            </p>
-            <div className="w-8 h-px bg-[var(--border-strong)] mt-4" />
-          </div>
-        )}
-
-        {/* The plate carries the reporting context, so the pack's cover states
-            what it is a pack of. */}
-        <EditorialPlate className="min-h-[218px] hidden lg:block" align="bottom">
-          <dl className="grid grid-cols-2 gap-x-6 text-[9px] font-semibold uppercase tracking-[0.15em] leading-[1.9]">
-            <div>
-              <dt className="opacity-60">Period</dt>
-              <dd>{currentPeriod.label}</dd>
-            </div>
-            <div>
-              <dt className="opacity-60">Basis</dt>
-              <dd>{basis}</dd>
-            </div>
-            <div>
-              <dt className="opacity-60">Fiscal</dt>
-              <dd>
-                {currentPeriod.fiscalYear} · P{currentPeriod.fiscalPeriod}
-              </dd>
-            </div>
-            <div>
-              <dt className="opacity-60">Currency</dt>
-              <dd>{dataset.profile.reportingCurrency}</dd>
-            </div>
-          </dl>
-        </EditorialPlate>
-      </header>
+      <Masthead
+        eyebrow="Overview"
+        title={headline.text ?? `${currentPeriod.label} results reported.`}
+        lede={`${dataset.profile.companyName} · ${currentPeriod.label} reporting pack. Group results with variance to plan and to last year.`}
+        commentary={insights[0]?.text}
+        context={[
+          { label: "Period", value: currentPeriod.label },
+          { label: "Basis", value: basis },
+          { label: "Fiscal", value: `${currentPeriod.fiscalYear} · P${currentPeriod.fiscalPeriod}` },
+          { label: "Currency", value: dataset.profile.reportingCurrency },
+        ]}
+      />
 
       <div className="mt-9">
         <KpiBand data={kpis} emphasiseFirst />
