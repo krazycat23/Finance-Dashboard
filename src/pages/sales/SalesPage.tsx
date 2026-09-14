@@ -2,71 +2,113 @@ import { useMemo, useState } from "react";
 import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PageSections } from "@/components/layout/AppShell";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
+import { Masthead } from "@/components/layout/Masthead";
+import { Section, SectionRow } from "@/components/layout/Section";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { KpiStrip } from "@/components/finance/KpiCard";
-import { InsightList } from "@/components/finance/InsightList";
-import { RankedBarList, type RankedItem } from "@/components/finance/RankedBarList";
-import { WeeklyTrendChart } from "@/components/charts/WeeklyTrendChart";
-import { CompositionChart } from "@/components/charts/CompositionChart";
-import { HeatGrid, type HeatRow } from "@/components/charts/HeatGrid";
-import { DataTable, type Column } from "@/components/tables/DataTable";
+import { Meter } from "@/components/ui/Meter";
+import { KpiBand } from "@/components/finance/KpiBand";
+import { buildPerformanceHeadline } from "@/components/finance/performanceHeadline";
+import { NumberedInsightList } from "@/components/finance/InsightList";
+import { ReportingUnavailable } from "@/components/finance/ReportingAvailability";
 import { VarianceValue } from "@/components/finance/VarianceValue";
+import { WeeklyTrendChart } from "@/components/charts/WeeklyTrendChart";
+import { TrendChart } from "@/components/charts/TrendChart";
+import { CompositionChart, type CompositionSlice } from "@/components/charts/CompositionChart";
+import { DataTable, type Column } from "@/components/tables/DataTable";
+import {
+  periodsForBasis, selectBreakdown, selectInsights, selectKpis, selectMetricSeries,
+  selectSalesTotals, selectWeeklySales, type DimensionBreakdown, type WeeklyPoint,
+} from "@/domain/selectors";
+import {
+  reportingCapabilities, selectModuleAvailability,
+} from "@/domain/selectors/availability";
+import type { KpiDatum } from "@/domain/selectors/kpi";
 import { calculateVariance } from "@/domain/metrics/variance";
 import { getMetric } from "@/domain/metrics";
-import {
-  selectBreakdown, selectInsights, selectKpis, selectMonthlyByDimension,
-  selectPriorYearSalesTotals, selectSalesTotals, selectWeeklySales,
-  type DimensionBreakdown,
-} from "@/domain/selectors";
-import { formatCurrency, formatNumber, formatPercentage } from "@/utils/format";
+import { formatCurrency, formatMetric, formatMetricDelta, formatPercentage } from "@/utils/format";
+import { cn } from "@/utils/cn";
 
 /**
- * SALES PERFORMANCE
+ * SALES — NORTH HOUSE
  * ---------------------------------------------------------------------------
- * Commercial view of the same revenue the P&L reports — both read the same
- * sales facts, so the two pages cannot disagree about the top line.
+ * The commercial reading of the same revenue the P&L reports — both read the
+ * same sales facts, so the two pages cannot disagree about the top line.
+ *
+ *   masthead    the period's trading statement and its commentary
+ *   band        four headline commercial measures, then the trading ratios
+ *   01 | 02     the trading series against the channel mix        (65/35)
+ *   03 | 04     regional performance against the drivers          (55/45)
+ *   05          category performance, best and worst, side by side
+ *   06          recent trading weeks, where weekly facts exist
+ *
+ * More energetic than the P&L — a wider spread, a denser series, paired
+ * rankings — but the same rules: nothing is boxed, charts sit on the canvas,
+ * and no metric, selector or arithmetic is added here.
  */
 
-const SALES_KPIS = [
-  "totalSales", "likeForLikeSales", "averageTransactionValue",
-  "units", "conversion", "orders",
-];
+/** The headline commercial measures. All are registry metrics. */
+const SALES_KPIS = ["totalSales", "likeForLikeSales", "transactions", "averageTransactionValue"];
 
-type ProductMeasure = "revenue" | "grossProfit" | "units";
+/** The trading ratios behind them, shown as a rail rather than a second band. */
+const TRADING_RATIOS = ["traffic", "conversion", "unitsPerTransaction", "grossMargin"];
+
+/**
+ * Trading windows the weekly selector already supports. This is a real control:
+ * the week count is the selector's own argument, not a filter invented here.
+ */
+const WEEK_WINDOWS = [
+  { value: "13", label: "13 weeks" },
+  { value: "26", label: "26 weeks" },
+  { value: "52", label: "52 weeks" },
+] as const;
+type WeekWindow = (typeof WEEK_WINDOWS)[number]["value"];
+
+/** Grains the breakdown selector supports for a "where did it come from" read. */
+const GRAINS = [
+  { value: "locationId", label: "Region" },
+  { value: "entityId", label: "Entity" },
+] as const;
+type Grain = (typeof GRAINS)[number]["value"];
 
 export function SalesPage() {
-  return useReportingDataset().source === "demo" ? <DemoSalesPage/> : <ConfiguredReporting mode="sales"/>;
+  return useReportingDataset().source === "demo" ? <DemoSalesPage /> : <ConfiguredReporting mode="sales" />;
 }
+
 function DemoSalesPage() {
-  const { selection, currentPeriod } = useFilters();
-  const [productMeasure, setProductMeasure] = useState<ProductMeasure>("revenue");
+  const dataset = useReportingDataset();
+  const { selection, currentPeriod, basis } = useFilters();
+  const capabilities = reportingCapabilities(dataset);
+
+  const [weekWindow, setWeekWindow] = useState<WeekWindow>("26");
+  const [grain, setGrain] = useState<Grain>("locationId");
 
   const kpis = useMemo(() => selectKpis(SALES_KPIS, selection), [selection]);
+  const ratios = useMemo(() => selectKpis(TRADING_RATIOS, selection), [selection]);
+  const headline = useMemo(
+    () => buildPerformanceHeadline(kpis, ["likeForLikeSales", "transactions", "averageTransactionValue"]),
+    [kpis],
+  );
   const insights = useMemo(() => selectInsights(selection, "sales"), [selection]);
-  const weekly = useMemo(() => selectWeeklySales(selection, 52), [selection]);
+  const totals = useMemo(() => selectSalesTotals(selection), [selection]);
   const channels = useMemo(() => selectBreakdown(selection, "channelId"), [selection]);
   const products = useMemo(() => selectBreakdown(selection, "productId"), [selection]);
-  const totals = useMemo(() => selectSalesTotals(selection), [selection]);
-  const priorTotals = useMemo(() => selectPriorYearSalesTotals(selection), [selection]);
+  const members = useMemo(() => selectBreakdown(selection, grain), [selection, grain]);
 
-  const regionGrid = useMemo<HeatRow[]>(() => {
-    const rows = selectMonthlyByDimension(selection, "locationId");
-    return rows.map((row) => ({
-      id: row.id,
-      label: row.name,
-      cells: row.months.map((month) => ({
-        id: month.period.id,
-        label: month.period.shortLabel,
-        value: month.growth,
-      })),
-      total: row.total,
-    }));
-  }, [selection]);
+  const weekly = useMemo(
+    () => (capabilities.hasWeeklySales ? selectWeeklySales(selection, Number(weekWindow)) : []),
+    [selection, weekWindow, capabilities],
+  );
 
-  const channelSlices = useMemo(
+  // Where weekly facts do not exist the section still has to say something
+  // truthful, so it falls back to the monthly series rather than synthesising
+  // weeks out of monthly totals.
+  const monthly = useMemo(() => {
+    if (capabilities.hasWeeklySales) return [];
+    const periods = periodsForBasis("R12", selection.periodId);
+    return selectMetricSeries("revenue", periods, selection.entityId);
+  }, [selection, capabilities]);
+
+  const channelSlices = useMemo<CompositionSlice[]>(
     () =>
       channels.map((channel) => ({
         id: channel.id,
@@ -77,183 +119,495 @@ function DemoSalesPage() {
             ? undefined
             : formatPercentage(channel.growth, { showSign: true }),
         comparisonTone:
-          (channel.growth ?? 0) >= 0 ? ("positive" as const) : ("negative" as const),
+          channel.growth === undefined ? "neutral" : channel.growth >= 0 ? "positive" : "negative",
       })),
     [channels],
   );
 
-  const productItems = useMemo<RankedItem[]>(() => {
-    const rows = products.map((product): RankedItem => {
-      const value =
-        productMeasure === "revenue" ? product.revenue
-        : productMeasure === "grossProfit" ? product.grossProfit
-        : product.units;
-      return {
-        id: product.id,
-        label: product.name,
-        value,
-        display:
-          productMeasure === "units"
-            ? formatNumber(value, { scale: "thousands", precision: 1 })
-            : formatCurrency(value),
-        secondary:
-          product.growth === undefined
-            ? undefined
-            : formatPercentage(product.growth, { showSign: true }),
-        secondaryTone: (product.growth ?? 0) >= 0 ? "positive" : "negative",
-      };
-    });
-    return rows.sort((a, b) => b.value - a.value);
-  }, [products, productMeasure]);
-
-  const lflGrowth =
-    totals.likeForLikePriorYear > 0
-      ? totals.likeForLike / totals.likeForLikePriorYear - 1
-      : undefined;
-
-  const channelColumns = useMemo<Column<DimensionBreakdown>[]>(() => {
-    const revenueMetric = getMetric("totalSales");
-    const cell = (value: number, comparison: number) => {
-      const variance = calculateVariance(value, comparison, revenueMetric);
-      if (!variance) return <span className="text-tertiary">—</span>;
-      return (
-        <VarianceValue variance={variance} size="sm" showGlyph={false}>
-          {variance.relative === undefined
-            ? "—"
-            : formatPercentage(variance.relative, { showSign: true })}
-        </VarianceValue>
-      );
-    };
-
-    return [
-      { id: "channel", header: "Channel", align: "left", render: (row) => row.name },
-      { id: "revenue", header: "Actual", align: "right", render: (row) => formatCurrency(row.revenue) },
-      { id: "budget", header: "Budget", align: "right", groupStart: true, render: (row) => formatCurrency(row.budgetRevenue) },
-      { id: "vs-budget", header: "vs Budget", align: "right", render: (row) => cell(row.revenue, row.budgetRevenue) },
-      { id: "ly", header: "Last year", align: "right", groupStart: true, render: (row) => formatCurrency(row.priorYearRevenue) },
-      { id: "vs-ly", header: "vs LY", align: "right", render: (row) => cell(row.revenue, row.priorYearRevenue) },
-      { id: "share", header: "Share", align: "right", groupStart: true, render: (row) => formatPercentage(row.share) },
-      { id: "margin", header: "Gross margin", align: "right", render: (row) => formatPercentage(row.grossMargin) },
-    ];
-  }, []);
-
-  const channelTotal = useMemo<DimensionBreakdown>(
-    () => ({
-      id: "total",
-      name: "Total",
-      revenue: totals.revenue,
-      grossProfit: totals.grossProfit,
-      grossMargin: totals.grossMargin,
-      units: totals.units,
-      share: 1,
-      priorYearRevenue: priorTotals.revenue,
-      budgetRevenue: totals.budgetRevenue,
-      growth: priorTotals.revenue ? totals.revenue / priorTotals.revenue - 1 : undefined,
-    }),
-    [totals, priorTotals],
+  // Ranked on growth, then split at the middle so the two ends never share a
+  // member. With six categories that is three and three; a shallow dimension
+  // falls back to a single ranking rather than printing each row twice.
+  const ranked = useMemo(
+    () => [...products].sort((a, b) => (b.growth ?? -1) - (a.growth ?? -1)),
+    [products],
   );
+  const paired = ranked.length >= 4;
+  const half = Math.min(5, Math.floor(ranked.length / 2));
+  const leaders = paired ? ranked.slice(0, half) : ranked;
+  const laggards = paired ? ranked.slice(-half).reverse() : [];
+
+  const grainLabel = GRAINS.find((option) => option.value === grain)?.label ?? "Region";
 
   return (
     <>
-      <PageHeader
-        eyebrow="Sales Performance"
-        title="Sales performance and growth drivers."
-        subtitle="Channel, category and regional performance, with like-for-like trading and variance to plan."
+      <Masthead
+        eyebrow="Commercial performance"
+        titleClassName="max-w-[24ch]"
+        title={headline.text ?? `${currentPeriod.label} trading reported.`}
+        lede={`${dataset.profile.companyName} · ${basis} ${currentPeriod.label}. Channel, category and regional trading against plan and last year.`}
+        commentary={insights[0]?.text}
+        context={[
+          { label: "Period", value: currentPeriod.label },
+          { label: "Basis", value: basis },
+          { label: "Channels", value: String(channels.length) },
+          { label: "Currency", value: dataset.profile.reportingCurrency },
+        ]}
       />
 
-      <PageSections>
-        <KpiStrip data={kpis} />
+      <div className="mt-9">
+        <KpiBand data={kpis} emphasiseFirst />
+      </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-5">
-          <Panel flush>
-            <PanelHeader
-              title="Weekly sales trend"
-              meta="Last 52 trading weeks"
-              description="Closed weeks only, against last year and plan."
-            />
-            <PanelBody>
-              <WeeklyTrendChart data={weekly} height={262} />
-            </PanelBody>
-          </Panel>
+      <TradingRatioRail data={ratios} />
 
-          <Panel flush>
-            <PanelHeader
-              title="Channel mix"
-              meta={`${selection.basis} ${currentPeriod.label}`}
-            />
-            <PanelBody>
-              <CompositionChart
-                slices={channelSlices}
-                mode="categorical"
-                centreValue={formatCurrency(totals.revenue)}
-                centreLabel="Total sales"
-                height={196}
-              />
-            </PanelBody>
-          </Panel>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <Panel flush>
-            <PanelHeader
-              title="Key sales insights"
-              meta={lflGrowth === undefined ? undefined : `LFL ${formatPercentage(lflGrowth, { showSign: true })}`}
-            />
-            <PanelBody>
-              <InsightList insights={insights} />
-            </PanelBody>
-          </Panel>
-
-          <Panel flush>
-            <PanelHeader
-              title="Performance by category"
-              actions={
+      <div className="mt-10 flex flex-col gap-10">
+        {/* 01 | 02 — the trading series against where it came from ------------ */}
+        <SectionRow split="65/35">
+          <Section
+            flushTop
+            number="01"
+            title="Sales performance"
+            meta={capabilities.hasWeeklySales ? `Rolling ${weekWindow} trading weeks` : "Rolling 12 months"}
+            description="Closed periods only, against last year and plan."
+            actions={
+              capabilities.hasWeeklySales ? (
                 <SegmentedControl
-                  aria-label="Category measure"
-                  value={productMeasure}
-                  onChange={setProductMeasure}
-                  options={[
-                    { value: "revenue", label: "Sales" },
-                    { value: "grossProfit", label: "GP" },
-                    { value: "units", label: "Units" },
-                  ]}
+                  aria-label="Trading window"
+                  value={weekWindow}
+                  onChange={setWeekWindow}
+                  options={WEEK_WINDOWS.map((option) => ({ ...option }))}
                 />
-              }
-            />
-            <PanelBody>
-              <RankedBarList items={productItems} showIndex />
-            </PanelBody>
-          </Panel>
-        </div>
+              ) : undefined
+            }
+          >
+            {capabilities.hasWeeklySales ? (
+              <WeeklyTrendChart data={weekly} height={330} />
+            ) : (
+              <TrendChart data={monthly} height={330} actualLabel="Sales — actual" />
+            )}
+          </Section>
 
-        <Panel flush>
-          <PanelHeader
-            title="Sales by region"
-            meta="Growth vs last year"
-            description="Each cell shows the year-on-year movement in that month; the scale is shown beneath."
-          />
-          <PanelBody>
-            <HeatGrid rows={regionGrid} totalLabel={selection.basis} />
-          </PanelBody>
-        </Panel>
+          <Section
+            flushTop
+            number="02"
+            title="Channel mix"
+            meta={`${basis} ${currentPeriod.label}`}
+          >
+            {channels.length > 0 ? (
+              <>
+                <CompositionChart
+                  slices={channelSlices}
+                  // Ranked by revenue, so the mix reads as one hue light to dark
+                  // rather than as unrelated colours competing for meaning.
+                  mode="sequential"
+                  surface="canvas"
+                  comparisonLabel="vs LY"
+                  height={196}
+                  centreValue={formatCurrency(totals.revenue)}
+                  centreLabel="Total sales"
+                />
+                <ChannelGrowthRail rows={channels} />
+              </>
+            ) : (
+              <ReportingUnavailable message={selectModuleAvailability("sales", dataset).message} />
+            )}
+          </Section>
+        </SectionRow>
 
-        <Panel flush>
-          <PanelHeader
-            title="Sales by channel"
-            meta={`${selection.basis} ${currentPeriod.label}`}
-          />
-          <PanelBody>
-            <DataTable
-              columns={channelColumns}
-              rows={[...channels, channelTotal]}
-              rowKey={(row) => row.id}
-              rowClassName={(row) =>
-                row.id === "total" ? "font-semibold border-t-2 border-strong bg-inset/40" : undefined
-              }
-            />
-          </PanelBody>
-        </Panel>
-      </PageSections>
+        {/* 03 | 04 — where it traded, and why --------------------------------- */}
+        <SectionRow split="55/45">
+          <Section
+            flushTop
+            number="03"
+            title={`Sales by ${grainLabel.toLowerCase()}`}
+            meta={`${basis} ${currentPeriod.label}`}
+            description="Members come from the active dataset's own dimension; nothing is hard-coded."
+            actions={
+              <SegmentedControl
+                aria-label="Reporting grain"
+                value={grain}
+                onChange={setGrain}
+                options={GRAINS.map((option) => ({ ...option }))}
+              />
+            }
+          >
+            <MemberPerformanceTable rows={members} label={grainLabel} />
+          </Section>
+
+          <Section
+            flushTop
+            number="04"
+            title="Key commercial drivers"
+            meta="Derived from reported results"
+          >
+            {insights.length > 0 ? (
+              <NumberedInsightList insights={insights} />
+            ) : (
+              <p className="type-body">No movements of note in the reported trading.</p>
+            )}
+          </Section>
+        </SectionRow>
+
+        {/* 05 — the two ends of the category ranking, side by side ------------ */}
+        <Section
+          number="05"
+          title="Category performance"
+          meta="Ranked on growth vs last year"
+          description="Ranked on growth against last year. The dataset defines no store grain, so the finest sales dimension it does define is used."
+        >
+          {paired ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-8">
+              <CategoryTable rows={leaders} heading="Strongest categories" tone="positive" />
+              <CategoryTable rows={laggards} heading="Weakest categories" tone="negative" />
+            </div>
+          ) : (
+            <CategoryTable rows={leaders} heading="All reported categories" tone="positive" />
+          )}
+        </Section>
+
+        {/* 06 — the trading weeks themselves ---------------------------------- */}
+        <Section
+          number="06"
+          title="Recent trading weeks"
+          meta={capabilities.hasWeeklySales ? "Last 13 closed weeks" : undefined}
+          description="Peaks and troughs of the window are marked, so a scan finds the weeks that moved the period."
+        >
+          {capabilities.hasWeeklySales ? (
+            <WeeklyDetailTable rows={weekly.slice(-13)} />
+          ) : (
+            <ReportingUnavailable message={selectModuleAvailability("weekly", dataset).message} />
+          )}
+        </Section>
+      </div>
     </>
+  );
+}
+
+/**
+ * TRADING RATIO RAIL
+ * ---------------------------------------------------------------------------
+ * The ratios behind the headline figures, on one rule hung off the KPI band.
+ * They are KPI data like any other — unit, precision and favourability come
+ * from the registry — but they are supporting evidence, so they are set at a
+ * fraction of the band's weight rather than given a second band of their own.
+ */
+function TradingRatioRail({ data }: { data: KpiDatum[] }) {
+  if (data.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-10 gap-y-3 py-3.5 border-b border-subtle">
+      {data.map((datum) => (
+        <div key={datum.metric.id} className="flex items-baseline gap-2.5">
+          <span className="type-label">{datum.metric.shortName ?? datum.metric.name}</span>
+          <span className="text-[14px] font-semibold text-primary tnum">
+            {formatMetric(datum.value, datum.metric)}
+          </span>
+          {datum.variance && (
+            <VarianceValue variance={datum.variance} label={datum.comparisonLabel} size="sm">
+              {formatMetricDelta(datum.variance.absolute, datum.variance.relative, datum.metric)}
+            </VarianceValue>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * CHANNEL GROWTH RAIL
+ * ---------------------------------------------------------------------------
+ * The mix answers "where are sales coming from"; this answers "and which of
+ * them are growing", which the ring cannot show. Same rows, same selector.
+ */
+function ChannelGrowthRail({ rows }: { rows: DimensionBreakdown[] }) {
+  return (
+    <div className="mt-6 border-t border-subtle pt-4">
+      <div className="eyebrow">Growth vs last year</div>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-x-5 gap-y-3 mt-3">
+        {rows.map((row) => (
+          <div key={row.id} className="min-w-0">
+            <div className="text-[11.5px] text-secondary truncate">{row.name}</div>
+            <div
+              className={cn(
+                "text-[15px] font-semibold tnum mt-1",
+                row.growth === undefined ? "text-tertiary"
+                  : row.growth >= 0 ? "text-positive" : "text-negative",
+              )}
+            >
+              {row.growth === undefined
+                ? "—"
+                : formatPercentage(row.growth, { showSign: true })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * MEMBER PERFORMANCE
+ * ---------------------------------------------------------------------------
+ * A ranked read of whichever dimension the reader selected. There is no map:
+ * the dataset carries no geometry, and a drawn map of invented shapes would be
+ * a decoration that implies data the product does not have.
+ */
+function MemberPerformanceTable({ rows, label }: { rows: DimensionBreakdown[]; label: string }) {
+  const ranked = [...rows].sort((a, b) => b.revenue - a.revenue);
+  const max = Math.max(...ranked.map((row) => row.revenue), 0);
+  const revenueMetric = getMetric("totalSales");
+
+  const columns: Column<DimensionBreakdown>[] = [
+    {
+      id: "member",
+      header: label,
+      align: "left",
+      width: "24%",
+      render: (row, index) => (
+        <span className="flex items-baseline gap-3 min-w-0">
+          <span aria-hidden className="type-section-number w-[14px] shrink-0">
+            {index + 1}
+          </span>
+          <span
+            className={cn(
+              "truncate text-primary",
+              index === 0 ? "text-[13px] font-semibold" : "text-[12.5px]",
+            )}
+          >
+            {row.name}
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: "revenue",
+      header: "Sales",
+      align: "right",
+      width: "16%",
+      groupStart: true,
+      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
+    },
+    {
+      id: "share",
+      header: "Share",
+      align: "right",
+      width: "24%",
+      render: (row, index) => (
+        <div className="flex flex-col items-end gap-[5px]">
+          <span>{formatPercentage(row.share)}</span>
+          <Meter
+            value={row.revenue}
+            max={max}
+            className={cn("w-full max-w-[150px]", index > 0 && "opacity-75")}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "growth",
+      header: "vs LY",
+      align: "right",
+      width: "18%",
+      groupStart: true,
+      render: (row) => {
+        const variance = calculateVariance(row.revenue, row.priorYearRevenue, revenueMetric);
+        if (!variance || row.growth === undefined) return <span className="text-tertiary">—</span>;
+        return (
+          <VarianceValue variance={variance} size="sm" showGlyph={false}>
+            {formatPercentage(row.growth, { showSign: true })}
+          </VarianceValue>
+        );
+      },
+    },
+    {
+      id: "margin",
+      header: "Gross margin",
+      align: "right",
+      width: "18%",
+      render: (row) => formatPercentage(row.grossMargin),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={ranked}
+      rowKey={(row) => row.id}
+      minWidth={560}
+      empty="No members are reported for this dimension."
+    />
+  );
+}
+
+/**
+ * CATEGORY TABLE
+ * ---------------------------------------------------------------------------
+ * One end of the category ranking. Both ends are the same component, so the
+ * strongest and the weakest are read on identical terms.
+ */
+function CategoryTable({
+  rows, heading, tone,
+}: { rows: DimensionBreakdown[]; heading: string; tone: "positive" | "negative" }) {
+  const revenueMetric = getMetric("totalSales");
+
+  const columns: Column<DimensionBreakdown>[] = [
+    {
+      id: "name",
+      header: "Category",
+      align: "left",
+      width: "36%",
+      render: (row) => <span className="text-[12.5px] text-primary">{row.name}</span>,
+    },
+    {
+      id: "revenue",
+      header: "Sales",
+      align: "right",
+      width: "22%",
+      groupStart: true,
+      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
+    },
+    {
+      id: "growth",
+      header: "vs LY",
+      align: "right",
+      width: "21%",
+      render: (row) => {
+        const variance = calculateVariance(row.revenue, row.priorYearRevenue, revenueMetric);
+        if (!variance || row.growth === undefined) return <span className="text-tertiary">—</span>;
+        return (
+          <VarianceValue variance={variance} size="sm" showGlyph={false}>
+            {formatPercentage(row.growth, { showSign: true })}
+          </VarianceValue>
+        );
+      },
+    },
+    {
+      id: "margin",
+      header: "GM %",
+      align: "right",
+      width: "21%",
+      render: (row) => formatPercentage(row.grossMargin),
+    },
+  ];
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2.5 pb-2.5">
+        <span
+          aria-hidden
+          className={cn("w-[18px] h-[2px]", tone === "positive" ? "bg-positive" : "bg-negative")}
+        />
+        <span className="type-label">{heading}</span>
+      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        minWidth={420}
+        empty="No categories are reported for this selection."
+      />
+    </div>
+  );
+}
+
+/**
+ * WEEKLY DETAIL
+ * ---------------------------------------------------------------------------
+ * The trading weeks themselves. The best and worst weeks of the window are
+ * marked so a scan finds them without reading every row — the mark is derived
+ * from the rows on screen, and no week is synthesised from a monthly total.
+ */
+function WeeklyDetailTable({ rows }: { rows: WeeklyPoint[] }) {
+  const revenueMetric = getMetric("totalSales");
+  const revenues = rows.map((row) => row.revenue);
+  const peak = Math.max(...revenues, Number.NEGATIVE_INFINITY);
+  const trough = Math.min(...revenues, Number.POSITIVE_INFINITY);
+
+  const comparison = (value: number, against: number | undefined) => {
+    const variance = calculateVariance(value, against, revenueMetric);
+    if (!variance || variance.relative === undefined) return <span className="text-tertiary">—</span>;
+    return (
+      <VarianceValue variance={variance} size="sm" showGlyph={false}>
+        {formatPercentage(variance.relative, { showSign: true })}
+      </VarianceValue>
+    );
+  };
+
+  const columns: Column<WeeklyPoint>[] = [
+    {
+      id: "week",
+      header: "Week",
+      align: "left",
+      width: "16%",
+      render: (row) => <span className="text-[12.5px] text-primary">{row.week.label}</span>,
+    },
+    {
+      id: "marker",
+      header: "",
+      align: "left",
+      width: "12%",
+      render: (row) => (
+        <span className="type-caption">
+          {row.revenue === peak ? "Peak" : row.revenue === trough ? "Trough" : ""}
+        </span>
+      ),
+    },
+    {
+      id: "revenue",
+      header: "Sales",
+      align: "right",
+      width: "16%",
+      groupStart: true,
+      render: (row) => <span className="font-medium">{formatCurrency(row.revenue)}</span>,
+    },
+    {
+      id: "shape",
+      header: "",
+      align: "left",
+      width: "20%",
+      render: (row) => (
+        <Meter
+          value={row.revenue}
+          max={peak}
+          className={cn("max-w-[190px]", row.revenue !== peak && "opacity-75")}
+        />
+      ),
+    },
+    {
+      id: "ly",
+      header: "Last year",
+      align: "right",
+      width: "12%",
+      groupStart: true,
+      render: (row) =>
+        row.priorYear === undefined
+          ? <span className="text-tertiary">—</span>
+          : formatCurrency(row.priorYear),
+    },
+    {
+      id: "vs-ly",
+      header: "vs LY",
+      align: "right",
+      width: "12%",
+      render: (row) => comparison(row.revenue, row.priorYear),
+    },
+    {
+      id: "vs-budget",
+      header: "vs Budget",
+      align: "right",
+      width: "12%",
+      groupStart: true,
+      render: (row) => comparison(row.revenue, row.budget || undefined),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={rows}
+      rowKey={(row) => row.week.id}
+      minWidth={840}
+      empty="No closed trading weeks fall within the selected reporting date."
+    />
   );
 }

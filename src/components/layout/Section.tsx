@@ -72,14 +72,16 @@ export function SectionRow({
 }: {
   children: ReactNode;
   className?: string;
-  split?: "60/40" | "40/60" | "50/50";
+  split?: "65/35" | "60/40" | "55/45" | "50/50" | "40/60";
 }) {
   return (
     <div className="border-t border-strong">
       <div
         className={cn(
           "grid grid-cols-1 gap-x-10 gap-y-9 pt-4",
-          split === "60/40" ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+          split === "65/35" ? "lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]"
+            : split === "60/40" ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+            : split === "55/45" ? "lg:grid-cols-[minmax(0,1.24fr)_minmax(0,1fr)]"
             : split === "40/60" ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.55fr)]"
             : "lg:grid-cols-2",
           // The divider is a rule on the second column, so it disappears with

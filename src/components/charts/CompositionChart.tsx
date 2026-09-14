@@ -124,10 +124,10 @@ export function CompositionChart({
             <th className="text-left pb-1.5 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
               &nbsp;
             </th>
-            <th className="text-right pb-1.5 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
+            <th className="text-right pb-1.5 pl-4 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
               Share
             </th>
-            <th className="text-right pb-1.5 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
+            <th className="text-right pb-1.5 pl-4 text-[10px] uppercase tracking-[0.07em] text-tertiary font-medium">
               {comparisonLabel}
             </th>
           </tr>
@@ -145,12 +145,12 @@ export function CompositionChart({
                   <span className="text-[12px] text-primary truncate">{slice.label}</span>
                 </span>
               </td>
-              <td className="py-[7px] text-right text-[12px] text-primary tnum">
+              <td className="py-[7px] pl-4 text-right text-[12px] text-primary tnum">
                 {formatPercentage(slice.share)}
               </td>
               <td
                 className={cn(
-                  "py-[7px] text-right text-[12px] tnum",
+                  "py-[7px] pl-4 text-right text-[12px] tnum",
                   slice.comparisonTone === "positive" && "text-positive",
                   slice.comparisonTone === "negative" && "text-negative",
                   (!slice.comparisonTone || slice.comparisonTone === "neutral") && "text-secondary",
