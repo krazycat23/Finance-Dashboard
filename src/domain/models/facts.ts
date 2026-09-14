@@ -61,6 +61,15 @@ export interface SalesRecord {
   orders?: number;
   transactions?: number;
   traffic?: number;
+  /**
+   * Orders written in the period, where the business separates the order from
+   * its delivery. `revenue` is always what was delivered and recognised; the
+   * difference between the two is the movement in the order bank.
+   *
+   * Absent on channels that take home at the till, where written and
+   * delivered are the same event.
+   */
+  writtenRevenue?: number;
   /** Revenue for the comparable prior-year period, for like-for-like. */
   priorYearRevenue?: number;
   /** Excluded from like-for-like (new or closed locations). */

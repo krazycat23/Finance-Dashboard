@@ -32,6 +32,11 @@ interface Combo {
   comparable: boolean;
   /** Compound monthly growth specific to this combination, if any. */
   growthAdj?: number;
+  /**
+   * Months between an order being written and being delivered. Zero for a
+   * channel that takes home at the till, where the two are one event.
+   */
+  leadMonths: number;
 }
 
 /**
@@ -95,12 +100,13 @@ function buildCombos(): Combo[] {
         upt: 2.1,
         comparable: store.comparable,
         growthAdj: store.growthAdj,
+        leadMonths: 0,
       });
     }
   }
   combos.push({
     entityId: "retail-au", channelId: "online", locationId: "nsw",
-    weight: 0.07, marginRate: 0.492, atv: 118, upt: 1.8, comparable: true,
+    weight: 0.07, marginRate: 0.492, atv: 118, upt: 1.8, comparable: true, leadMonths: 0.4,
   });
 
   // Retail New Zealand — the same estate treatment.
@@ -115,31 +121,32 @@ function buildCombos(): Combo[] {
       upt: 2.0,
       comparable: store.comparable,
       growthAdj: store.growthAdj,
+      leadMonths: 0,
     });
   }
   combos.push({
     entityId: "retail-nz", channelId: "online", locationId: "nz",
-    weight: 0.025, marginRate: 0.478, atv: 109, upt: 1.7, comparable: true,
+    weight: 0.025, marginRate: 0.478, atv: 109, upt: 1.7, comparable: true, leadMonths: 0.4,
   });
 
   // Digital — the growth engine, higher margin, higher basket.
   combos.push({
     entityId: "digital", channelId: "online", locationId: "nsw",
-    weight: 0.13, marginRate: 0.515, atv: 126, upt: 1.9, comparable: true,
+    weight: 0.13, marginRate: 0.515, atv: 126, upt: 1.9, comparable: true, leadMonths: 0.4,
   });
   combos.push({
     entityId: "digital", channelId: "marketplace", locationId: "vic",
-    weight: 0.045, marginRate: 0.372, atv: 97, upt: 1.6, comparable: true,
+    weight: 0.045, marginRate: 0.372, atv: 97, upt: 1.6, comparable: true, leadMonths: 0.8,
   });
 
   // Wholesale — lower margin, larger orders, fewer transactions.
   combos.push({
     entityId: "wholesale", channelId: "wholesale", locationId: "nsw",
-    weight: 0.14, marginRate: 0.318, atv: 4200, upt: 64, comparable: true,
+    weight: 0.14, marginRate: 0.318, atv: 4200, upt: 64, comparable: true, leadMonths: 1.6,
   });
   combos.push({
     entityId: "wholesale", channelId: "wholesale", locationId: "nz",
-    weight: 0.035, marginRate: 0.302, atv: 3800, upt: 58, comparable: true,
+    weight: 0.035, marginRate: 0.302, atv: 3800, upt: 58, comparable: true, leadMonths: 1.6,
   });
 
   return combos;
