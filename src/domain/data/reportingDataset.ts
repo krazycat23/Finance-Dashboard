@@ -30,6 +30,68 @@ export interface ImportEvent { id: string; feed: string; completedAt: string; du
 export interface DataHealthInput { integrityScore: number; mappingWeight?: number; reconciliationWeight?: number; integrityWeight?: number; timelinessWeight?: number; }
 export interface ReportingDataQuality { mappingSummaries: MappingSummaryInput[]; unmappedMembers: UnmappedMember[]; issues: DataIssue[]; reconciliations: ReconciliationResult[]; imports: ImportEvent[]; health: DataHealthInput; }
 
+/**
+ * REPORT LIBRARY
+ * ---------------------------------------------------------------------------
+ * The delivery side of the product: what is scheduled, what has been exported,
+ * what is packed for a board, and what can be produced from a template.
+ *
+ * None of it is derived from the ledger, so it is carried on the dataset like
+ * the forecast configuration and the data-quality block — supplied by whatever
+ * adapter is active. The demo adapter supplies a worked example; an imported
+ * company supplies nothing until a real library is wired in, and the page
+ * shows its unavailable state rather than demo rows.
+ */
+export type ReportStatus = "Scheduled" | "Ready" | "Shared" | "In progress" | "Draft" | "Paused";
+export type ReportCadence = "Monthly" | "Quarterly" | "Weekly" | "Annual" | "On demand";
+export type ExportFormat = "PDF" | "Excel" | "CSV" | "PowerPoint";
+
+interface ReportBase {
+  id: string;
+  title: string;
+  /** The reporting category this belongs to; category counts are derived. */
+  type: string;
+  /** Route of the underlying reporting page, where one exists. */
+  route?: string;
+}
+
+export interface ScheduledReport extends ReportBase {
+  cadence: ReportCadence;
+  owner: string;
+  status: ReportStatus;
+  /** ISO date of the next run. */
+  nextDelivery: string;
+  recipients: number;
+}
+
+export interface ReportExport extends ReportBase {
+  period: string;
+  exportedBy: string;
+  /** ISO timestamp. */
+  exportedAt: string;
+  format: ExportFormat;
+  sizeKb: number;
+}
+
+export interface BoardPack extends ReportBase {
+  period: string;
+  owner: string;
+  status: ReportStatus;
+  sections: number;
+}
+
+export interface ReportTemplate extends ReportBase {
+  description: string;
+  cadence: ReportCadence;
+}
+
+export interface ReportLibrary {
+  scheduled: ScheduledReport[];
+  exports: ReportExport[];
+  boardPacks: BoardPack[];
+  templates: ReportTemplate[];
+}
+
 export interface ReportingDimensions {
   entities: Entity[];
   accounts: Account[];
@@ -57,6 +119,8 @@ export interface ReportingDataset {
   currentPeriodId: string;
   defaultEntityId: string;
   profile: CompanyProfile;
+  /** The delivery library, where the active adapter supplies one. */
+  reportLibrary?: ReportLibrary;
   scenarioRoles: ScenarioRoles;
   forecastConfiguration?: ForecastConfiguration;
   /** Demo-only narrative inputs; generic selectors do not own company assumptions. */

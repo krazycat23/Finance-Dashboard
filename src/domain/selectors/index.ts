@@ -8,3 +8,4 @@ export * from "./insights";
 export * from "./forecast";
 export * from "./dataQuality";
 export * from "./operational";
+export * from "./reports";

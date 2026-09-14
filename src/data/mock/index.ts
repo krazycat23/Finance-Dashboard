@@ -8,6 +8,7 @@ import type { ReportingDataAdapter, ReportingDataset } from "@/domain/data";
 import * as dimensions from "./dimensions";
 import { generateFinancials, toFinanceRecords, type FinanceScenarios } from "./finance";
 import { generateOperational } from "./operational";
+import { reportLibrary } from "./reports";
 import { generateSales, generateWeeklySales } from "./sales";
 import { validateFinancials, validateResidual } from "./validate";
 
@@ -96,6 +97,7 @@ function buildDataset(): ReportingDataset {
       locale: companyConfig.locale, defaultScale: companyConfig.defaultScale,
       fiscalCalendar: { periodicity: "monthly", fiscalYearStartMonth: companyConfig.fiscalYearStartMonth, fiscalYearLabel: companyConfig.fiscalYearLabel }, defaultTheme: companyConfig.defaultTheme,
     },
+    reportLibrary,
     scenarioRoles: { actual: "actual", budget: "original-budget", forecast: "forecast-current" },
     forecastConfiguration: {
       scenarios: [
