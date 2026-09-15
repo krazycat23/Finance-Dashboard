@@ -5,12 +5,28 @@ import type { AdapterManifest, CanonicalReconciliation, CanonicalReportingPackag
 import { CANONICAL_REPORTING_SCHEMA_VERSION } from "../contract";
 import { CALENDAR_FILE, parseFinancialCalendar, toWeekPeriods, type FreedomWeek } from "./calendar";
 import { GL_MAPPING_FILE, parseGlMapping, type FreedomGlMapping } from "./glMapping";
-import { TRIAL_BALANCES, parseTrialBalance, type TrialBalanceParse } from "./trialBalance";
+import { TRIAL_BALANCES, openPeriodEvidence, parseTrialBalance, type TrialBalanceParse } from "./trialBalance";
 import { WRITTEN_SALES_FILE, describeDeliveredSalesGap, parseWeeklyHistory, parseWrittenSales } from "./sales";
 import { Accumulator, sum } from "./sum";
 import type { SourceWorkbooks } from "./workbook";
 
 const GROUP_ENTITY_ID = "FF";
+
+/**
+ * When a scenario is too far from its own source to be published.
+ *
+ * The test is NOT the share of value that is unmapped. By magnitude the FY27
+ * budget is only 10% unmapped, which reads as healthy — but the unmapped GLs
+ * are the entire Online channel, income and cost together, and they are
+ * systematically net-positive. Excluding them turns the budget's own +$23.5m
+ * result into a canonical -$33.9m. A one-sided omission of a tenth of the value
+ * is far more dangerous than an even omission of a third.
+ *
+ * So the residual is measured against the scenario's own bottom line. Above
+ * this share it can invert the result, which is the point at which a figure
+ * stops being imprecise and starts being misleading.
+ */
+const MAXIMUM_RESIDUAL_SHARE = 0.25;
 const ENTITY_NAMES: Record<string, string> = {
   FFAU: "Freedom Furniture Australia",
   FFNZ: "Freedom Furniture New Zealand",
@@ -52,7 +68,7 @@ export function buildFreedomPackage(
   ];
 
   const reconciliations = buildReconciliations(balances, finance, sales);
-  const unsupported = collectUnsupported(workbooks, finance, mapping.byGl);
+  const unsupported = collectUnsupported(workbooks, finance, mapping.byGl, balances);
 
   return {
     id: "freedom-furniture",
@@ -100,9 +116,17 @@ export function buildFreedomPackage(
           review: 0,
           valueCoverage: finance.valueCoverage,
         },
+        ...[...finance.coverageByScenario].map(([scenario, entry]) => ({
+          dimension: `GL value — ${scenario}`,
+          total: finance.accounts.size,
+          mapped: finance.accounts.size - entry.unmappedGls.length,
+          unmapped: entry.unmappedGls.length,
+          review: 0,
+          valueCoverage: entry.coverage,
+        })),
       ],
       unmappedMembers: finance.unmappedMembers,
-      issues: [],
+      issues: [...completeness(balances), ...coverageIssues(finance)],
       reconciliations: reconciliations.map((entry) => ({
         id: entry.id,
         statement: entry.label,
@@ -123,7 +147,12 @@ export function buildFreedomPackage(
       hasCashFlow: false,
       hasSales: sales.monthly.length > 0,
       hasWeeklySales: sales.weekly.length > 0,
-      hasBudget: balances.some((balance) => balance.source.scenario === "budget"),
+      // A scenario is published only if the mapping actually covers it. The
+      // FY27 budget posts most of its value to GL codes the mapping workbook
+      // does not define, so publishing it would put a budget column on the page
+      // that omits the majority of the plan. Unavailable is the honest state;
+      // completing the mapping workbook turns it back on with no code change.
+      hasBudget: (finance.coverageByScenario.get("budget")?.residualShare ?? 1) <= MAXIMUM_RESIDUAL_SHARE,
       hasForecast: false,
       hasOperationalKpis: false,
     },
@@ -152,6 +181,16 @@ interface FinanceBuild {
   canonicalTotal: number;
   /** Raw mapped trial-balance value, by canonical scenario. */
   mappedByScenario: Map<string, number>;
+  coverageByScenario: Map<string, {
+    coverage: number;
+    unmappedValue: number;
+    unmappedGls: string[];
+    /** Net value excluded from the ladder because it has no canonical role. */
+    residual: number;
+    /** The scenario's own bottom line in the source workbooks. */
+    sourceNet: number;
+    residualShare: number;
+  }>;
   valueCoverage: number;
 }
 
@@ -172,12 +211,24 @@ function buildFinance(balances: TrialBalanceParse[], mappingByGl: Map<string, Fr
   const mappedGross = new Accumulator();
   const unmappedGross = new Accumulator();
   const mappedByScenario = new Map<string, Accumulator>();
+  const residualByScenario = new Map<string, Accumulator>();
+  // Coverage per scenario. Averaged across sources it hides the case that
+  // matters: a budget can be two-thirds unmapped while the group figure still
+  // reads as healthy, because the actuals are large and well covered.
+  const coverage = new Map<string, { mapped: Accumulator; unmapped: Accumulator; unmappedGls: Set<string> }>();
 
   for (const balance of balances) {
     for (const cell of balance.cells) {
       const mapping = mappingByGl.get(cell.glCode);
       periodIds.add(cell.periodId);
-      if (balance.source.scenario === "actual") actualPeriodIds.add(cell.periodId);
+      // A period is reported as CLOSED only up to the workbook's own cut-off.
+      // Its values are still carried — the month exists and its lineage is
+      // intact — but `isActual` is what stops an open month being summed into a
+      // year-to-date figure or plotted as a closed one.
+      const closedThrough = balance.source.closedThrough;
+      if (balance.source.scenario === "actual" && (!closedThrough || cell.periodId <= closedThrough)) {
+        actualPeriodIds.add(cell.periodId);
+      }
       entityCodes.add(cell.entityId);
       if (cell.costCentreId) costCentres.set(cell.costCentreId, cell.costCentreName || cell.costCentreId);
       if (!accounts.has(cell.glCode)) accounts.set(cell.glCode, { description: mapping?.description ?? cell.glDescription, mapping });
@@ -185,6 +236,9 @@ function buildFinance(balances: TrialBalanceParse[], mappingByGl: Map<string, Fr
       // Sign normalisation: the canonical value for the line this GL belongs to.
       // An unmapped GL has no line, so it carries its raw value and is reported
       // as unmapped rather than being given a role to make a total tie.
+      const scenarioCoverage = coverage.get(balance.source.scenario) ?? { mapped: new Accumulator(), unmapped: new Accumulator(), unmappedGls: new Set<string>() };
+      coverage.set(balance.source.scenario, scenarioCoverage);
+
       const multiplier = mapping?.multiplier ?? 1;
       const value = cell.rawValue * multiplier;
       signNormalised.add(value);
@@ -192,12 +246,18 @@ function buildFinance(balances: TrialBalanceParse[], mappingByGl: Map<string, Fr
       if (mapping && mapping.line !== "unconfirmed") {
         mapped.add(cell.rawValue);
         mappedGross.add(Math.abs(cell.rawValue));
+        scenarioCoverage.mapped.add(Math.abs(cell.rawValue));
         const scenario = mappedByScenario.get(balance.source.scenario) ?? new Accumulator();
         scenario.add(cell.rawValue);
         mappedByScenario.set(balance.source.scenario, scenario);
       } else {
         unmapped.add(cell.rawValue);
         unmappedGross.add(Math.abs(cell.rawValue));
+        scenarioCoverage.unmapped.add(Math.abs(cell.rawValue));
+        scenarioCoverage.unmappedGls.add(cell.glCode);
+        const residual = residualByScenario.get(balance.source.scenario) ?? new Accumulator();
+        residual.add(cell.rawValue);
+        residualByScenario.set(balance.source.scenario, residual);
         unmappedValue.set(cell.glCode, (unmappedValue.get(cell.glCode) ?? 0) + cell.rawValue);
       }
 
@@ -248,6 +308,20 @@ function buildFinance(balances: TrialBalanceParse[], mappingByGl: Map<string, Fr
     unmappedValue: unmappedTotal,
     canonicalTotal: mappedValue,
     mappedByScenario: new Map([...mappedByScenario].map(([scenario, accumulator]) => [scenario, accumulator.value])),
+    coverageByScenario: new Map([...coverage].map(([scenario, entry]) => {
+      const gross = entry.mapped.value + entry.unmapped.value;
+      const residual = residualByScenario.get(scenario)?.value ?? 0;
+      const sourceNet = (mappedByScenario.get(scenario)?.value ?? 0) + residual;
+      const base = Math.max(Math.abs(sourceNet), Math.abs(mappedByScenario.get(scenario)?.value ?? 0));
+      return [scenario, {
+        coverage: gross === 0 ? 1 : entry.mapped.value / gross,
+        unmappedValue: entry.unmapped.value,
+        unmappedGls: [...entry.unmappedGls].sort(),
+        residual,
+        sourceNet,
+        residualShare: base === 0 ? 0 : Math.abs(residual) / base,
+      }];
+    })),
     valueCoverage,
   };
 }
@@ -547,7 +621,55 @@ function buildReconciliations(balances: TrialBalanceParse[], finance: FinanceBui
   return entries;
 }
 
-function collectUnsupported(workbooks: SourceWorkbooks, finance: FinanceBuild, mappingByGl: Map<string, FreedomGlMapping>): string[] {
+/**
+ * Periods that look open, whatever a workbook's columns imply. Reported as
+ * issues so an incomplete month is visible as an incomplete month rather than
+ * as a trading collapse.
+ */
+function completeness(balances: TrialBalanceParse[]): CanonicalReportingPackageV1["dataQuality"]["issues"] {
+  return balances.flatMap((balance) =>
+    openPeriodEvidence(balance).map((finding) => {
+      const declaredOpen = balance.source.closedThrough !== undefined && finding.periodId > balance.source.closedThrough;
+      return {
+        id: `open-period-${slug(balance.source.file)}-${finding.periodId}`,
+        severity: declaredOpen ? ("info" as const) : ("critical" as const),
+        category: "Completeness" as const,
+        title: declaredOpen
+          ? `${finding.periodId} is open and is not reported as actual`
+          : `${finding.periodId} looks incomplete but is reported as closed`,
+        detail: `${finding.periodId} posts ${finding.posted} lines against a median of ${finding.expected} in the periods before it.`
+          + (declaredOpen
+            ? ` ${balance.source.file} reports actuals through ${balance.source.closedThrough}, so this period is carried but excluded from year-to-date figures and from closed-period charts.`
+            : ` ${balance.source.file} declares no cut-off covering it, so it is being summed into year-to-date figures against full comparative periods.`),
+        source: `${balance.source.file}/${balance.source.sheet}`,
+        affectedRecords: finding.posted,
+        firstSeen: finding.periodId,
+        status: declaredOpen ? ("Resolved" as const) : ("Open" as const),
+      };
+    }),
+  );
+}
+
+/** A scenario the mapping does not cover is an exception, not a footnote. */
+function coverageIssues(finance: FinanceBuild): CanonicalReportingPackageV1["dataQuality"]["issues"] {
+  return [...finance.coverageByScenario]
+    .filter(([, entry]) => entry.residual !== 0)
+    .map(([scenario, entry]) => ({
+      id: `coverage-${scenario}`,
+      severity: entry.residualShare > MAXIMUM_RESIDUAL_SHARE ? ("critical" as const) : ("warning" as const),
+      category: "Mapping" as const,
+      title: entry.residualShare > MAXIMUM_RESIDUAL_SHARE
+        ? `${scenario} scenario is not published: ${Math.round(Math.abs(entry.residual)).toLocaleString("en-AU")} of unmapped value against a source result of ${Math.round(entry.sourceNet).toLocaleString("en-AU")}`
+        : `${scenario} scenario carries ${Math.round(Math.abs(entry.residual)).toLocaleString("en-AU")} of unmapped value (${(entry.residualShare * 100).toFixed(1)}% of its result)`,
+      detail: `${entry.unmappedGls.length} GL code(s) carrying value in the ${scenario} scenario are absent from ${GL_MAPPING_FILE}: ${entry.unmappedGls.slice(0, 12).join(", ")}${entry.unmappedGls.length > 12 ? ", …" : ""}. They are not assigned a role, because guessing one would put a figure on the page that the mapping does not support.`,
+      source: GL_MAPPING_FILE,
+      affectedRecords: entry.unmappedGls.length,
+      firstSeen: "",
+      status: "Open" as const,
+    }));
+}
+
+function collectUnsupported(workbooks: SourceWorkbooks, finance: FinanceBuild, mappingByGl: Map<string, FreedomGlMapping>, balances: TrialBalanceParse[]): string[] {
   const notes: string[] = [];
   const delivered = describeDeliveredSalesGap(workbooks);
   if (delivered) notes.push(delivered);
@@ -562,6 +684,13 @@ function collectUnsupported(workbooks: SourceWorkbooks, finance: FinanceBuild, m
     notes.push(`Source hierarchy header(s) ${headers.join(", ")} have no canonical calculation role and are excluded from the ladder rather than absorbed into operating costs.`);
   }
   notes.push(`${WRITTEN_SALES_FILE}/Written Sales: the pre-converted NZ AUD columns hold a runaway doubling series from fiscal week 15 (246m, 492m, 982m, 1.96bn, 3.92bn, 7.85bn) while the NZD columns beside them are zero. The NZD columns are used and converted with the workbook's own FX rate; the converted block is ignored.`);
+  for (const balance of balances) {
+    for (const finding of openPeriodEvidence(balance)) {
+      if (balance.source.closedThrough !== undefined && finding.periodId > balance.source.closedThrough) {
+        notes.push(`${balance.source.file} carries a ${finding.periodId} column that is still open (${finding.posted} posted lines against a median of ${finding.expected}). It is excluded from actuals; reporting it as closed would compare a part-month against full budget and prior-year months.`);
+      }
+    }
+  }
   notes.push("No balance-sheet or cash-flow source is supplied; those modules report as unavailable.");
   return notes;
 }

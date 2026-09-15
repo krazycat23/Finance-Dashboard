@@ -17,11 +17,26 @@ export interface TrialBalanceSource {
   /** Which canonical scenario the workbook's values belong to. */
   scenario: "actual" | "budget";
   label: string;
+  /**
+   * The last period this workbook reports as CLOSED, where it carries columns
+   * beyond its own cut-off.
+   *
+   * "AUG TB" is an August trial balance and it carries a September column, but
+   * September is still open: it holds 3,575 posted rows against August's 6,104
+   * and $11.2m of gross sales against a budgeted $45.4m. Treating it as closed
+   * compares two and a bit months of actual against three months of budget and
+   * of last year, and manufactures profit out of a month that has revenue
+   * posted but not yet its costs.
+   *
+   * The declaration is checked against the data in `openPeriodEvidence`; the
+   * two disagreeing is an error, not something to paper over.
+   */
+  closedThrough?: string;
 }
 
 export const TRIAL_BALANCES: TrialBalanceSource[] = [
   { file: "FY26 Final TB.xlsx", sheet: "PY TB", scenario: "actual", label: "FY26 actual trial balance" },
-  { file: "AUG TB.xlsx", sheet: "Sheet2", scenario: "actual", label: "FY27 year-to-date actual trial balance" },
+  { file: "AUG TB.xlsx", sheet: "Sheet2", scenario: "actual", label: "FY27 year-to-date actual trial balance", closedThrough: "2026-08" },
   { file: "FY27 Budget TB.xlsx", sheet: "Sheet2", scenario: "budget", label: "FY27 budget trial balance" },
 ];
 
@@ -48,6 +63,36 @@ export interface TrialBalanceParse {
   /** Sum of the emitted cells; equal to sourceTotal because only zeros are dropped. */
   unpivotedTotal: number;
   droppedZeroCells: number;
+  /** Posted (non-zero) cell count per period, for the completeness check. */
+  postedByPeriod: Map<string, number>;
+}
+
+/**
+ * COMPLETENESS
+ * ---------------------------------------------------------------------------
+ * Is a trailing period actually closed? A closed month posts roughly as many
+ * lines as the months before it. An open one posts a fraction — some revenue
+ * has landed, most accruals have not — which is indistinguishable from a
+ * catastrophic trading month unless someone looks.
+ *
+ * This measures every period against the median of the periods before it and
+ * reports the ones that fall below half, so a declared cut-off is evidence-
+ * checked rather than trusted.
+ */
+export function openPeriodEvidence(parse: TrialBalanceParse): { periodId: string; posted: number; expected: number }[] {
+  const periods = parse.periodIds;
+  const counts = periods.map((periodId) => parse.postedByPeriod.get(periodId) ?? 0);
+  const findings: { periodId: string; posted: number; expected: number }[] = [];
+
+  periods.forEach((periodId, index) => {
+    if (index === 0) return;
+    const preceding = counts.slice(0, index).filter((count) => count > 0).sort((a, b) => a - b);
+    if (preceding.length === 0) return;
+    const median = preceding[Math.floor(preceding.length / 2)];
+    if (counts[index] < median * 0.5) findings.push({ periodId, posted: counts[index], expected: median });
+  });
+
+  return findings;
 }
 
 const ENTITY_HEADERS = ["Entity", "Entiy"];
@@ -80,6 +125,7 @@ export function parseTrialBalance(workbooks: SourceWorkbooks, source: TrialBalan
   }
 
   const cells: TrialBalanceCell[] = [];
+  const postedByPeriod = new Map<string, number>();
   const sourceValues: number[] = [];
   let sourceCellCount = 0;
   let droppedZeroCells = 0;
@@ -99,6 +145,7 @@ export function parseTrialBalance(workbooks: SourceWorkbooks, source: TrialBalan
         droppedZeroCells += 1;
         continue;
       }
+      postedByPeriod.set(period.periodId, (postedByPeriod.get(period.periodId) ?? 0) + 1);
       cells.push({
         periodId: period.periodId,
         entityId,
@@ -122,5 +169,6 @@ export function parseTrialBalance(workbooks: SourceWorkbooks, source: TrialBalan
     sourceTotal,
     unpivotedTotal,
     droppedZeroCells,
+    postedByPeriod,
   };
 }
