@@ -8,12 +8,14 @@ import { CoverBand } from "@/components/overview/CoverBand";
 import { Meter } from "@/components/ui/Meter";
 import { buildPerformanceHeadline } from "@/components/finance/performanceHeadline";
 import { VarianceValue } from "@/components/finance/VarianceValue";
+import { Sparkline } from "@/components/finance/Sparkline";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
 import { StatementTable } from "@/components/tables/StatementTable";
 import { numberedNavigation } from "@/config/navigation";
 import {
-  periodsForBasis, selectEbitdaBridge, selectFullYearOutlook, selectInsights,
-  selectKpis, selectMetricSeries, selectProfitAndLoss, selectReportLibrary,
+  periodsForBasis, selectDataHealth, selectEbitdaBridge, selectFullYearOutlook,
+  selectInsights, selectKpis, selectMetricSeries, selectProfitAndLoss,
+  selectReportLibrary, selectTopVariances,
 } from "@/domain/selectors";
 import { reportingCapabilities, selectAvailable } from "@/domain/selectors/availability";
 import type { KpiDatum } from "@/domain/selectors/kpi";
@@ -87,7 +89,23 @@ function DemoOverviewPage() {
     () => (capabilities.hasPnl ? selectEbitdaBridge(selection) : []),
     [selection, capabilities],
   );
-  const pnlRows = useMemo(() => selectProfitAndLoss(selection), [selection]);
+  /**
+   * The statement in brief. The full ladder is kept — dropping the lines
+   * between EBITDA and net profit would leave a statement that visibly does
+   * not add up, which is worse than a long one — but lines that are zero in
+   * every scenario are dropped rather than muted. The page's closing section
+   * was opening with three blank rows.
+   */
+  const pnlRows = useMemo(
+    () =>
+      selectProfitAndLoss(selection).filter(
+        (row) =>
+          row.isSection ||
+          row.emphasis !== "detail" ||
+          [row.actual, row.budget, row.priorYear, row.forecast].some((value) => (value ?? 0) !== 0),
+      ),
+    [selection],
+  );
 
   return (
     <>
@@ -200,6 +218,12 @@ function CoverFigure({ datum, basis }: { datum: KpiDatum; basis: string }) {
  * enclosing rules and no dividers between cells, each figure instead hung on a
  * hairline of its own with the variance below the line. Three, not four — the
  * fourth figure is the one on the cover.
+ *
+ * Every figure carries its trailing year beside it. A number on its own says
+ * where a business ended up; the same number with twelve months behind it says
+ * whether it got there steadily or in one jump, and the KPI layer has already
+ * built that series for the sparkline the working pages draw. Leaving it out
+ * here was throwing away the most informative thing on the row.
  */
 function FigureRow({ data }: { data: KpiDatum[] }) {
   if (data.length === 0) return null;
@@ -209,8 +233,19 @@ function FigureRow({ data }: { data: KpiDatum[] }) {
       {data.map((datum) => (
         <div key={datum.metric.id} className="min-w-0">
           <div className="type-label">{datum.metric.shortName ?? datum.metric.name}</div>
-          <div className="font-serif text-[clamp(30px,3vw,42px)] leading-none tracking-[-0.015em] tnum mt-3 text-primary">
-            {formatMetric(datum.value, datum.metric)}
+          <div className="flex items-end justify-between gap-5 mt-3">
+            <div className="font-serif text-[clamp(30px,3vw,42px)] leading-none tracking-[-0.015em] tnum text-primary">
+              {formatMetric(datum.value, datum.metric)}
+            </div>
+            {datum.series.length > 1 && (
+              <Sparkline
+                values={datum.series}
+                width={96}
+                height={30}
+                title={datum.metric.name}
+                className="shrink-0 overflow-visible"
+              />
+            )}
           </div>
           <div className="mt-3.5 pt-3 border-t border-strong flex items-baseline gap-x-5 gap-y-1.5 flex-wrap">
             {datum.variance ? (
@@ -251,7 +286,9 @@ function FigureRow({ data }: { data: KpiDatum[] }) {
  */
 interface IndexReading {
   metricId?: string;
-  /** Stated instead of a metric where the page has no single headline figure. */
+  /** A figure the page owns that the metric registry does not define. */
+  stated?: { display: string; caption: string };
+  /** Stated instead of a figure where the page genuinely has none. */
   note?: string;
 }
 
@@ -259,6 +296,27 @@ function PackIndex() {
   const dataset = useReportingDataset();
   const { selection } = useFilters();
   const capabilities = reportingCapabilities(dataset);
+
+  // Three pages lead with something the metric registry does not define: a
+  // full-year position, the worst line against plan, and a coverage score.
+  // Each comes from the selector that page itself calls.
+  const outlook = useMemo(
+    () => selectAvailable("forecast", () => selectFullYearOutlook(selection), dataset),
+    [selection, dataset],
+  );
+  const worstVariance = useMemo(() => {
+    if (!capabilities.hasBudget) return undefined;
+    // Adverse first: an overview should surface what needs someone, and a
+    // favourable variance never does. The selector already signs every line so
+    // that positive means favourable whatever the line — re-applying `inverse`
+    // here inverted the cost lines a second time and picked the SMALLEST
+    // favourable one, which is how "Interest, $0.0M" came to be reported as
+    // the worst line against plan.
+    return selectTopVariances(selection)
+      .filter((item) => item.variance < 0)
+      .sort((a, b) => a.variance - b.variance)[0];
+  }, [selection, capabilities]);
+  const health = useMemo(() => selectDataHealth(), []);
 
   // What each page leads with. Only metrics the registry defines and the
   // resolvers can produce; a page with no single figure says what it is for.
@@ -273,17 +331,24 @@ function PackIndex() {
       "cash-flow": capabilities.hasCashFlow
         ? { metricId: "operatingCashFlow" }
         : { note: "No cash flow supplied" },
-      forecasts: capabilities.hasForecast
-        ? { note: "Scenarios, risks and opportunities" }
+      forecasts: outlook
+        ? { stated: { display: formatCurrency(outlook.forecast), caption: "Full-year EBITDA outlook" } }
         : { note: "No forecast supplied" },
-      variance: capabilities.hasBudget
-        ? { note: "Actual against plan, line by line" }
-        : { note: "No plan supplied" },
+      variance: worstVariance
+        ? {
+            stated: {
+              display: formatCurrency(Math.abs(worstVariance.variance)),
+              caption: `${worstVariance.label} — worst against plan`,
+            },
+          }
+        : { note: capabilities.hasBudget ? "Nothing adverse against plan" : "No plan supplied" },
       reports: { note: "Schedules, exports and board packs" },
-      "data-mapping": { note: "Coverage, exceptions and lineage" },
+      "data-mapping": {
+        stated: { display: `${Math.round(health.score)}%`, caption: `Data integrity — ${health.grade.toLowerCase()}` },
+      },
       settings: { note: "Reporting preferences" },
     }),
-    [capabilities],
+    [capabilities, outlook, worstVariance, health],
   );
 
   const metricIds = useMemo(
@@ -338,8 +403,16 @@ function PackIndex() {
                         </span>
                         {/* The figure IS the reading. A note as well as a figure
                             says the same thing twice in half the width. */}
-                        {!datum && note && (
+                        {!datum && !reading?.stated && note && (
                           <span className="type-caption block mt-0.5">{note}</span>
+                        )}
+                        {!datum && reading?.stated && (
+                          <span className="block mt-1">
+                            <span className="text-[13px] font-semibold text-primary tnum">
+                              {reading.stated.display}
+                            </span>
+                            <span className="type-caption block mt-0.5">{reading.stated.caption}</span>
+                          </span>
                         )}
                         {datum && (
                           <span className="flex items-baseline gap-2 mt-1">
@@ -375,29 +448,47 @@ function PackIndex() {
 /**
  * WHAT MOVED
  * ---------------------------------------------------------------------------
- * The same findings the working pages carry, set as statements rather than as
- * a numbered list: the ordinal is large and quiet, the sentence is the size of
- * body copy that expects to be read, and a rule separates one from the next.
+ * The findings are RANKED, and a grid destroys a ranking: three columns read
+ * across then down, so the second-most-important finding lands beside the
+ * first rather than beneath it, and the reader has no way to know the order
+ * was ever meant.
+ *
+ * So it is set the way a front page sets a lead: the first finding large and
+ * given its own measure, the rest following it as a ranked rail. The reader
+ * gets the ordering back and the section keeps a shape.
  */
 function MovementNotes({ insights }: { insights: Insight[] }) {
   if (insights.length === 0) {
     return <p className="type-body">No movements of note in the reported results.</p>;
   }
 
+  const [lead, ...rest] = insights.slice(0, 6);
+
   return (
-    <ol className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-10">
-      {insights.slice(0, 6).map((insight, index) => (
-        <li
-          key={insight.id}
-          className="grid grid-cols-[2.1rem_minmax(0,1fr)] gap-x-3 py-4 border-b border-subtle"
-        >
-          <span className="font-serif text-[19px] leading-none text-tertiary tnum pt-[3px]">
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <p className="type-body-lead">{insight.text}</p>
-        </li>
-      ))}
-    </ol>
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-x-12 gap-y-8">
+      <div className="min-w-0">
+        <span className="type-label">The lead</span>
+        <p className="font-serif text-[clamp(20px,1.85vw,26px)] leading-[1.32] tracking-[-0.008em] text-primary mt-3 max-w-[30ch]">
+          {lead.text}
+        </p>
+      </div>
+
+      {rest.length > 0 && (
+        <ol className="min-w-0 flex flex-col">
+          {rest.map((insight, index) => (
+            <li
+              key={insight.id}
+              className="grid grid-cols-[1.9rem_minmax(0,1fr)] gap-x-3 py-3.5 border-b border-subtle last:border-b-0 first:pt-0"
+            >
+              <span className="font-serif text-[17px] leading-none text-tertiary tnum pt-[3px]">
+                {String(index + 2).padStart(2, "0")}
+              </span>
+              <p className="type-body">{insight.text}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -414,7 +505,10 @@ function OutlookStrip({ outlook }: { outlook: ReturnType<typeof selectFullYearOu
   const progress = outlook.forecast === 0 ? 0 : outlook.actualToDate / outlook.forecast;
 
   return (
-    <div className="mt-10 flex items-center gap-x-9 gap-y-3 flex-wrap py-3.5 border-y border-subtle">
+    // A plinth under the cover. Without it the page drops from a full-bleed
+    // inverted band straight onto open canvas, and the join reads as a cliff.
+    <div className="-mx-8 lg:-mx-12 mt-10 px-8 lg:px-12 bg-inset border-y border-subtle">
+      <div className="flex items-center gap-x-9 gap-y-3 flex-wrap py-3.5">
       <span className="type-label shrink-0">Full-year EBITDA outlook</span>
 
       <div className="flex items-center gap-3 min-w-[220px] flex-1 max-w-[420px]">
@@ -442,6 +536,7 @@ function OutlookStrip({ outlook }: { outlook: ReturnType<typeof selectFullYearOu
           </VarianceValue>
         )}
       </span>
+      </div>
     </div>
   );
 }
