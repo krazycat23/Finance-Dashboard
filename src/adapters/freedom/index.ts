@@ -49,6 +49,31 @@ export class FreedomCompanyAdapter implements CompanyAdapter {
   readonly manifest = freedomManifest;
   private cached?: CanonicalReportingPackageV1;
 
+  /**
+   * Fetch the bundled workbooks. The canonical contract keeps `load`
+   * synchronous, so everything asynchronous happens here and the bytes are
+   * handed over exactly as the validation harness hands over files read from
+   * disk — one code path, two callers.
+   */
+  async prepare(): Promise<AdapterInput> {
+    // Imported here rather than at module scope: the asset glob is a Vite
+    // feature, and the Node validation harness — which supplies the same
+    // workbooks by reading the same directory from disk — must never evaluate it.
+    const { SOURCE_URLS } = await import("./sourceAssets");
+    const files = await Promise.all(
+      Object.entries(SOURCE_URLS).map(async ([path, url]) => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Freedom source ${path} could not be fetched: ${response.status} ${response.statusText}`);
+        return {
+          name: path.split("/").pop() ?? path,
+          mediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          bytes: new Uint8Array(await response.arrayBuffer()),
+        };
+      }),
+    );
+    return { files };
+  }
+
   load(input?: AdapterInput): CanonicalReportingPackageV1 {
     if (this.cached) return this.cached;
 

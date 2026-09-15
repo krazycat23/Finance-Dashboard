@@ -15,6 +15,17 @@ export function activationBlockers(result: ReturnType<typeof buildImportedDatase
 }
 
 /** Shared by the React provider and lifecycle verification; no alternate test activation path. */
+/**
+ * Resolve an adapter's dataset, giving it the chance to fetch its own sources
+ * first. Both call sites are already asynchronous, so this costs nothing and
+ * keeps `load` synchronous for adapters that need no preparation.
+ */
+async function loadAdapterDataset(adapter: ReportingDataAdapter): Promise<ReportingDataset> {
+  const prepare = (adapter as { prepare?: () => Promise<unknown> }).prepare;
+  const input = typeof prepare === "function" ? await prepare.call(adapter) : undefined;
+  return (adapter as { load: (input?: unknown) => ReportingDataset }).load(input);
+}
+
 export class ReportingRuntime {
   private revision = 0;
   readonly store: ImportWorkspaceStore;
@@ -27,7 +38,7 @@ export class ReportingRuntime {
   async restore(): Promise<ReportingRuntimeState> {
     const active = await this.store.getActiveCompany();
     if (active && active !== "demo") return this.switchCompany(active);
-    return this.publish(this.demo.load());
+    return this.publish(await loadAdapterDataset(this.demo));
   }
   async activate(workspace: ImportWorkspace): Promise<ReportingRuntimeState> {
     const result = buildImportedDataset(workspace);
@@ -40,7 +51,7 @@ export class ReportingRuntime {
     return this.publish(dataset, saved);
   }
   async switchCompany(id: string): Promise<ReportingRuntimeState> {
-    if (id === "demo") { await this.store.setActiveCompany("demo"); return this.publish(this.demo.load()); }
+    if (id === "demo") { await this.store.setActiveCompany("demo"); return this.publish(await loadAdapterDataset(this.demo)); }
     const workspace = await this.store.load(id);
     if (!workspace?.activatedDataset) throw new Error("This company has no activated dataset. Complete its onboarding review first.");
     if (workspace.activationSchemaVersion !== 1) throw new Error("This saved activation needs review and reactivation before it can be reopened.");

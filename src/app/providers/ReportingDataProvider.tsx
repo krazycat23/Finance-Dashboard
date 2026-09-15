@@ -8,6 +8,12 @@ import { resolveCompanyAdapter } from "@/adapters";
 interface ReportingDataContextValue extends ReportingRuntimeState {
   store: ImportWorkspaceStore;
   companies: ImportWorkspace[];
+  /**
+   * How the adapter-provided dataset should be named in company controls. The
+   * demo config cannot serve here: it names Northpoint whatever company is
+   * actually loaded.
+   */
+  defaultCompanyLabel: string;
   refreshCompanies: () => Promise<void>;
   activateWorkspace: (workspace: ImportWorkspace) => Promise<void>;
   switchCompany: (id: string) => Promise<void>;
@@ -15,6 +21,12 @@ interface ReportingDataContextValue extends ReportingRuntimeState {
 }
 
 const ReportingDataContext = createContext<ReportingDataContextValue | null>(null);
+
+/** An adapter's own human-readable name, where it publishes a manifest. */
+function adapterLabel(adapter: ReportingDataAdapter): string {
+  const manifest = (adapter as { manifest?: { name?: string } }).manifest;
+  return manifest?.name?.trim() || "Default dataset";
+}
 type AdapterSelection = ReportingDataAdapter | string;
 
 export function ReportingDataProvider({ adapter, children, store }: { adapter?: AdapterSelection; children: ReactNode; store?: ImportWorkspaceStore }) {
@@ -55,6 +67,7 @@ export function ReportingDataProvider({ adapter, children, store }: { adapter?: 
     ...state,
     store: runtime.store,
     companies,
+    defaultCompanyLabel: adapterLabel(resolvedAdapter),
     refreshCompanies,
     switchCompany,
     activateDefaultDataset: () => switchCompany("demo"),

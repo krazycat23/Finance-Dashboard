@@ -6,7 +6,7 @@ export class ReferenceCompanyAdapter implements CompanyAdapter {
   readonly id = "reference-demo";
   readonly manifest: AdapterManifest = {
     id: this.id,
-    name: "Reference demo adapter",
+    name: "Northpoint Demo",
     version: "1.0.0",
     schemaVersion: CANONICAL_REPORTING_SCHEMA_VERSION,
     description: "Reference implementation that packages the deterministic Northpoint demo dataset.",

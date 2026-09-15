@@ -30,6 +30,13 @@ export interface CanonicalReportingPackageV1 extends ReportingDataset {
 export interface CompanyAdapter extends ReportingDataAdapter {
   readonly manifest: AdapterManifest;
   load(input?: AdapterInput): CanonicalReportingPackageV1;
+  /**
+   * Optional: fetch whatever `load` needs before it is called. `load` is
+   * synchronous by contract, so an adapter whose sources are external — files
+   * on a host, an export to download — resolves them here and the runtime
+   * awaits it. Adapters with nothing to fetch simply omit it.
+   */
+  prepare?(): Promise<AdapterInput>;
 }
 
 export type SupportedCanonicalRole = CanonicalCalculationRole;

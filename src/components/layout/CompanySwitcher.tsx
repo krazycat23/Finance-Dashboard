@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useReportingDataController } from "@/app/providers/ReportingDataProvider";
 import { Select } from "@/components/ui/Select";
-import { companyConfig } from "@/config/company";
 
 /**
  * COMPANY SWITCHER
@@ -11,12 +10,14 @@ import { companyConfig } from "@/config/company";
  * activation schema version".
  */
 export function CompanySwitcher() {
-  const { workspace, companies, switchCompany } = useReportingDataController();
+  const { workspace, companies, switchCompany, defaultCompanyLabel } = useReportingDataController();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
   const options = [
-    { value: "demo", label: `${companyConfig.companyName} Demo` },
+    // Named by the active adapter, not by the demo configuration: the built-in
+    // option is whatever company the adapter actually supplies.
+    { value: "demo", label: defaultCompanyLabel },
     ...companies
       .filter((company) => company.activatedDataset && company.activationSchemaVersion === 1)
       .map((company) => ({

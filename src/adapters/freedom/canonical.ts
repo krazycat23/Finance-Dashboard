@@ -252,8 +252,27 @@ function buildFinance(balances: TrialBalanceParse[], mappingByGl: Map<string, Fr
   };
 }
 
+/**
+ * Calendar links are supplied, not inferred. `priorYearPeriods` resolves the
+ * comparative through `priorYearPeriodId` and returns nothing when a period
+ * does not carry one, so an adapter that omits these links silently reports
+ * every prior-year comparison as zero.
+ */
 function buildMonthPeriods(periodIds: string[], actualPeriodIds: string[]): Period[] {
   const actual = new Set(actualPeriodIds);
+  const available = new Set(periodIds);
+  const shiftYear = (id: string, years: number): string | undefined => {
+    const shifted = `${Number(id.slice(0, 4)) + years}-${id.slice(5)}`;
+    return available.has(shifted) ? shifted : undefined;
+  };
+  const previousMonth = (id: string): string | undefined => {
+    const year = Number(id.slice(0, 4));
+    const month = Number(id.slice(5, 7));
+    const date = new Date(Date.UTC(year, month - 2, 1));
+    const candidate = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    return available.has(candidate) ? candidate : undefined;
+  };
+
   return periodIds.map((id) => {
     const year = Number(id.slice(0, 4));
     const month = Number(id.slice(5, 7));
@@ -273,6 +292,14 @@ function buildMonthPeriods(periodIds: string[], actualPeriodIds: string[]): Peri
       calendarYear: year,
       calendarMonth: month,
       isActual: actual.has(id),
+      previousPeriodId: previousMonth(id),
+      priorYearPeriodId: shiftYear(id, -1),
+      fiscalYearPeriodIds: periodIds.filter((candidate) => {
+        const candidateMonth = Number(candidate.slice(5, 7));
+        const candidateYear = Number(candidate.slice(0, 4));
+        const candidateFyEnd = candidateMonth >= 7 ? candidateYear + 1 : candidateYear;
+        return candidateFyEnd === fiscalYearEnd;
+      }),
     };
   });
 }

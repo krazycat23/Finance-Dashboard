@@ -28,12 +28,27 @@ import { SettingsPage } from "@/pages/settings/SettingsPage";
 const Router = import.meta.env.VITE_HASH_ROUTES === "true" ? HashRouter : BrowserRouter;
 
 /**
+ * Which company adapter the application opens with. The registry is the only
+ * place adapters are named; this just chooses between the ids it already
+ * publishes, so adding a company never touches this file.
+ *
+ * `?adapter=<id>` wins so a build can be pointed at a company without being
+ * rebuilt, then the build-time default, then the reference demo.
+ */
+function selectedAdapterId(): string {
+  const requested = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("adapter");
+  return requested?.trim() || import.meta.env.VITE_COMPANY_ADAPTER || "reference-demo";
+}
+
+/**
  * Providers wrap the router so that theme and global filters survive
  * navigation. Routes mirror config/navigation.ts one-for-one.
  */
 export function App() {
   return (
-    <ReportingDataProvider adapter="reference-demo">
+    <ReportingDataProvider adapter={selectedAdapterId()}>
       <ThemeProvider>
         <FilterProvider>
         <Router>
