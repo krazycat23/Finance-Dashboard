@@ -83,6 +83,7 @@ const RESOLVERS: Record<string, Resolver> = {
  */
 const SALES_RESOLVERS: Record<string, (t: SalesTotals) => number | undefined> = {
   totalSales: (t) => t.revenue,
+  writtenSales: (t) => t.written,
   likeForLikeSales: (t) => t.likeForLike,
   likeForLikeGrowth: (t) =>
     t.likeForLikePriorYear ? t.likeForLike / t.likeForLikePriorYear - 1 : undefined,
@@ -139,6 +140,12 @@ const BASIS_LABEL: Record<string, string> = {
  */
 export function selectKpi(metricId: string, selection: PeriodSelection): KpiDatum {
   const metric = getMetric(metricId);
+  if (metric.standalone) {
+    throw new Error(
+      `Metric "${metricId}" is a standalone balance and cannot be resolved as a KPI. ` +
+        "Read it from its own selector instead.",
+    );
+  }
   const entityIds = resolveEntityIds(selection.entityId);
 
   if (isSalesMetric(metricId)) return selectSalesKpi(metricId, selection, entityIds);

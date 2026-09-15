@@ -12,12 +12,14 @@ import { NumberedInsightList } from "@/components/finance/InsightList";
 import { ReportingUnavailable } from "@/components/finance/ReportingAvailability";
 import { VarianceValue } from "@/components/finance/VarianceValue";
 import { WeeklyTrendChart } from "@/components/charts/WeeklyTrendChart";
+import { OrderFlowChart } from "@/components/charts/OrderFlowChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { CompositionChart, type CompositionSlice } from "@/components/charts/CompositionChart";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import {
   periodsForBasis, selectBreakdown, selectInsights, selectKpis, selectMetricSeries,
-  selectSalesTotals, selectWeeklySales, type DimensionBreakdown, type WeeklyPoint,
+  selectOrderBook, selectOrderFlow, selectSalesTotals, selectWeeklySales,
+  type DimensionBreakdown, type OrderBook, type WeeklyPoint,
 } from "@/domain/selectors";
 import {
   reportingCapabilities, selectModuleAvailability,
@@ -103,6 +105,10 @@ function DemoSalesPage() {
     () => new Map(dataset.dimensions.locations.map((location) => [location.id, location])),
     [dataset],
   );
+  // Written against delivered, and the bank of orders between the two.
+  const orderBook = useMemo(() => selectOrderBook(selection), [selection]);
+  const orderFlow = useMemo(() => selectOrderFlow(selection), [selection]);
+
   const rankedStores = useMemo(
     () => [...storeRows].sort((a, b) => (b.growth ?? -1) - (a.growth ?? -1)),
     [storeRows],
@@ -286,9 +292,28 @@ function DemoSalesPage() {
           </Section>
         )}
 
-        {/* 06 — the two ends of the category ranking, side by side ------------ */}
+        {/* 06 — what was ordered against what was delivered ------------------- */}
+        {orderBook.available && (
+          <SectionRow split="65/35">
+            <Section
+              flushTop
+              number="06"
+              title="Written against delivered"
+              meta="Rolling 18 months"
+              description="Orders written in the month against what was delivered and recognised, and the bank of orders between them."
+            >
+              <OrderFlowChart data={orderFlow} height={300} />
+            </Section>
+
+            <Section flushTop number="07" title="Order bank" meta={`At ${currentPeriod.label}`}>
+              <OrderBookSummary book={orderBook} />
+            </Section>
+          </SectionRow>
+        )}
+
+        {/* the two ends of the category ranking, side by side ----------------- */}
         <Section
-          number="06"
+          number={orderBook.available ? "08" : "06"}
           title="Category performance"
           meta="Ranked on growth vs last year"
           description="Ranked on growth against last year, across the categories the dataset defines."
@@ -303,9 +328,9 @@ function DemoSalesPage() {
           )}
         </Section>
 
-        {/* 07 — the trading weeks themselves ---------------------------------- */}
+        {/* the trading weeks themselves --------------------------------------- */}
         <Section
-          number="07"
+          number={orderBook.available ? "09" : "07"}
           title="Recent trading weeks"
           meta={capabilities.hasWeeklySales ? "Last 13 closed weeks" : undefined}
           description="Peaks and troughs of the window are marked, so a scan finds the weeks that moved the period."
@@ -483,6 +508,92 @@ function MemberPerformanceTable({ rows, label }: { rows: DimensionBreakdown[]; l
  * One end of the category ranking. Both ends are the same component, so the
  * strongest and the weakest are read on identical terms.
  */
+/**
+ * ORDER BOOK SUMMARY
+ * ---------------------------------------------------------------------------
+ * The three numbers the chart cannot state exactly: what was written, what
+ * was delivered, and the balance left standing — each against last year.
+ *
+ * The bank is given the weight, because it is the one figure here that is a
+ * balance rather than a flow, and the one a reader carries away.
+ */
+function OrderBookSummary({ book }: { book: OrderBook }) {
+  const bankMetric = getMetric("orderBank");
+  const writtenMetric = getMetric("writtenSales");
+  const salesMetric = getMetric("totalSales");
+
+  const bankVariance = calculateVariance(book.bank, book.bankPriorYear, bankMetric);
+  const rows = [
+    {
+      id: "written",
+      label: writtenMetric.name,
+      value: book.written,
+      variance: calculateVariance(book.written, book.writtenPriorYear, writtenMetric),
+    },
+    {
+      id: "delivered",
+      label: "Delivered",
+      value: book.delivered,
+      variance: calculateVariance(book.delivered, book.deliveredPriorYear, salesMetric),
+    },
+    // Over a window of any length the two flows very nearly cancel, which is
+    // why they read as the same number above. The difference between them is
+    // the movement in the bank, and is the figure worth stating outright.
+    {
+      id: "movement",
+      label: "Movement in the bank",
+      value: book.written - book.delivered,
+      variance: undefined,
+    },
+  ];
+
+  return (
+    <div>
+      <div className="pb-5 border-b border-subtle">
+        <div className="eyebrow">{bankMetric.name}</div>
+        <div className="type-kpi-lead tnum mt-1.5">{formatCurrency(book.bank)}</div>
+        <div className="flex items-baseline gap-3 mt-2">
+          {bankVariance && (
+            <VarianceValue variance={bankVariance} label="vs LY" size="sm">
+              {formatMetricDelta(bankVariance.absolute, bankVariance.relative, bankMetric)}
+            </VarianceValue>
+          )}
+        </div>
+        {book.coverWeeks !== undefined && (
+          <p className="type-caption mt-2.5">
+            {book.coverWeeks.toFixed(1)} weeks of delivery at the period&rsquo;s run rate.
+          </p>
+        )}
+      </div>
+
+      <dl className="flex flex-col">
+        {rows.map((row) => (
+          <div key={row.id} className="flex items-baseline justify-between gap-4 py-3.5 border-b border-subtle last:border-b-0">
+            <dt className="text-[12.5px] text-secondary">{row.label}</dt>
+            <dd className="flex items-baseline gap-3">
+              <span className="text-[14px] font-semibold text-primary tnum">
+                {row.id === "movement"
+                  ? formatCurrency(row.value, { showSign: true })
+                  : formatCurrency(row.value)}
+              </span>
+              {row.variance && (
+                <VarianceValue variance={row.variance} size="sm" showGlyph={false}>
+                  {formatPercentage(row.variance.relative ?? 0, { showSign: true })}
+                </VarianceValue>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <p className="type-caption mt-4 leading-relaxed">
+        Channels that settle at the till write and deliver in one event, so they
+        net to nothing in the bank. What stands here is wholesale and online.
+      </p>
+    </div>
+  );
+}
+
 /**
  * STORE TABLE
  * ---------------------------------------------------------------------------

@@ -303,6 +303,8 @@ export function generateSales(periods: Period[]): SalesGenerationResult {
     }
   });
 
+  applyWrittenRevenue(monthly, periods.length);
+
   // Prior year is the same series twelve months earlier — read back from what
   // was generated rather than invented, so vs-LY always reconciles.
   const byKey = new Map<string, SalesRecord>();
@@ -319,6 +321,81 @@ export function generateSales(periods: Period[]): SalesGenerationResult {
   }
 
   return { monthly, monthlyTotals };
+}
+
+
+/**
+ * ORDERS WRITTEN, AGAINST ORDERS DELIVERED
+ * ---------------------------------------------------------------------------
+ * `revenue` is always what was delivered and recognised. Where a channel
+ * separates the two events, what was WRITTEN in a month is what will be
+ * delivered `leadMonths` later — so written is read back off the delivered
+ * series rather than invented alongside it.
+ *
+ * Two things follow from that without being stated. Written runs ahead of
+ * delivered into a seasonal peak by the length of the lead, which is what
+ * makes it worth plotting at all. And the running difference between the two
+ * series settles at roughly `leadMonths` of delivery — which IS the order
+ * bank, so no opening balance has to be conjured for it.
+ *
+ * At the tail of the generated history there is nothing to read forward into,
+ * so the last month carries its own delivery: the bank flattens rather than
+ * collapsing to nothing.
+ *
+ * The bank needs an anchor. A running total of (written less delivered) from
+ * the first month of history telescopes to the GROWTH in delivery across the
+ * lead, not to the balance — a business delivering flat would show a bank of
+ * nothing. So the opening balance is written into the first month of each
+ * series: a book that already held `leadMonths` of delivery on the day the
+ * history starts. That month sits three years behind any reporting window.
+ */
+function applyWrittenRevenue(monthly: SalesRecord[], monthCount: number): void {
+  const leadByChannel = new Map(combos.map((combo) => [comboKey(combo), combo.leadMonths]));
+  const rng = createRandom(4180032);
+
+  // The same combination across the whole history, in month order.
+  const series = new Map<string, SalesRecord[]>();
+  for (const record of monthly) {
+    const key = recordKey(record);
+    const list = series.get(key);
+    if (list) list.push(record);
+    else series.set(key, [record]);
+  }
+
+  for (const [key, records] of series) {
+    const lead = leadByChannel.get(key.split("|").slice(0, 3).join("|")) ?? 0;
+    if (records.length !== monthCount) continue;
+
+    for (let month = 0; month < records.length; month += 1) {
+      if (lead === 0) {
+        // Written and delivered are one event at the till.
+        records[month].writtenRevenue = records[month].revenue;
+        continue;
+      }
+      const whole = Math.floor(lead);
+      const fraction = lead - whole;
+      const near = records[Math.min(month + whole, records.length - 1)].revenue;
+      const far = records[Math.min(month + whole + 1, records.length - 1)].revenue;
+      const written = (near * (1 - fraction) + far * fraction) * jitter(rng, 0.035);
+      records[month].writtenRevenue = round(written, 2);
+    }
+
+    // The opening balance, on the first month only.
+    if (lead > 0) {
+      const first = records[0];
+      first.writtenRevenue = round((first.writtenRevenue ?? first.revenue) + first.revenue * lead, 2);
+    }
+  }
+}
+
+/** Identity of a combination, without the product or the period. */
+function comboKey(combo: Combo): string {
+  return `${combo.entityId}|${combo.channelId}|${combo.locationId}`;
+}
+
+/** Identity of a single series: one combination, one product. */
+function recordKey(record: SalesRecord): string {
+  return `${record.entityId}|${record.channelId}|${record.locationId}|${record.productId}`;
 }
 
 /**

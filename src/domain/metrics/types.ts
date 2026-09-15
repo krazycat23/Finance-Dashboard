@@ -38,6 +38,15 @@ export interface MetricDefinition {
   description?: string;
   /** Statement / domain grouping, used by the KPI configurator. */
   domain?: "financial" | "sales" | "workingCapital" | "operational" | "forecast";
+  /**
+   * The metric exists for its format and its favourability, but the KPI layer
+   * cannot derive it from a period window — a balance carried across the whole
+   * history, say. Asking for it as a KPI raises rather than resolving to zero.
+   *
+   * Every metric without a resolver used to return a confident 0, which is how
+   * a net-debt-to-EBITDA of `0.00x` once reached a page.
+   */
+  standalone?: true;
 }
 
 export type MetricRegistry = Record<string, MetricDefinition>;

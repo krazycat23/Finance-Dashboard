@@ -20,32 +20,28 @@ state rather than Northpoint's numbers.
   `regionId` / `storeId` dimensions in `selectBreakdown`, and a store
   performance section on Sales.
 
-## In progress — written vs delivered sales
+## Done — written vs delivered sales
 
-Scaffolding is committed and inert; nothing reads it yet.
-
-- `SalesRecord.writtenRevenue` — orders written in the period, against
-  `revenue`, which is always what was delivered and recognised.
-- `Combo.leadMonths` in the sales generator — 0 for stores (the order and
-  the delivery are one event at the till), 0.4 for online, 0.8 for
-  marketplace, 1.6 for wholesale.
-
-Still to do:
-
-1. **Populate `writtenRevenue` in the generator.** The intended shape is
-   `written(m) ≈ delivered(m + leadMonths)`, interpolated between the two
-   surrounding months and jittered. Two things fall out of that for free:
-   written leads delivered into the December peak by a month, and the
-   cumulative difference between the two series settles at roughly
-   `leadMonths` of delivery — which *is* the order bank, without an opening
-   balance having to be invented.
-2. **`selectOrderBook(selection)`** returning written, delivered, the bank
-   (cumulative written less cumulative delivered through the window end),
-   weeks of cover, and the prior-year equivalents.
-3. **Registry metrics + resolvers** for `writtenSales` and `orderBank`.
-   Note that a metric registered without a resolver silently returns 0 —
-   that is how `netDebtToEbitda` came to render a confident `0.00x`.
-4. **A Sales section** pairing the two series with the bank movement.
+- `SalesRecord.writtenRevenue` against `revenue`, which is always what was
+  delivered and recognised. `Combo.leadMonths` in the generator: 0 for stores
+  (order and delivery are one event at the till), 0.4 online, 0.8
+  marketplace, 1.6 wholesale.
+- Written is read back off the delivered series — `written(m) ≈
+  delivered(m + leadMonths)` — rather than invented alongside it, so written
+  leads delivered into the December peak by the length of the lead.
+- The opening bank is anchored in the first month of history. A running total
+  of written less delivered telescopes to the GROWTH in delivery across the
+  lead, not to the balance, so without the anchor a flat business shows a bank
+  of nothing. It came out at $1.5M / 0.4 weeks before the anchor and $7.0M /
+  1.9 weeks after, which is the right order for a book with wholesale at 1.6
+  months.
+- `selectOrderBook` (balance, cover, prior-year) and `selectOrderFlow`
+  (written / delivered / bank by month), an `OrderFlowChart`, and sections 06
+  and 07 on Sales.
+- `writtenSales` is registered and resolvable. `orderBank` is registered
+  `standalone: true` — a new registry flag meaning the KPI layer cannot derive
+  it from a period window, so `selectKpi` now raises instead of returning a
+  confident zero. That is the guard the `netDebtToEbitda` `0.00x` needed.
 
 ## Not started
 
@@ -53,8 +49,9 @@ Still to do:
   `transactions` and `traffic`; this is a chart that was never drawn, not
   missing data.
 - **Balance sheet ratios.** Gearing and interest cover, and a real
-  `netDebtToEbitda` resolver. The metric is registered but unresolved, so
-  it is currently kept off the page rather than shown as zero.
+  `netDebtToEbitda` resolver. The metric is registered but unresolved; it is
+  kept off the page rather than shown as zero. Marking it `standalone: true`
+  would now make that failure loud rather than silent.
 - **P&L.** Net profit margin, and a view switcher across division, cost
   centre and account.
 - **Forecast.** A driver-level bridge.
