@@ -18,10 +18,23 @@ import { cn } from "@/utils/cn";
  * still legible to a reader who cannot distinguish the two colours.
  */
 
+/**
+ * The sentiment pair is chosen for the ground it is read on. The canvas pair
+ * is dark by design, and a dark green set on the inverted cover is unreadable,
+ * so the cover carries a light pair of its own. Favourability still decides
+ * the colour — only the ground has changed.
+ */
 const SENTIMENT_CLASS = {
-  positive: "text-positive",
-  negative: "text-negative",
-  neutral: "text-secondary",
+  canvas: {
+    positive: "text-positive",
+    negative: "text-negative",
+    neutral: "text-secondary",
+  },
+  cover: {
+    positive: "text-positive-cover",
+    negative: "text-negative-cover",
+    neutral: "text-cover-on/70",
+  },
 } as const;
 
 interface VarianceValueProps {
@@ -34,6 +47,8 @@ interface VarianceValueProps {
   showGlyph?: boolean;
   /** Arrows read as movement in prose; triangles read as a ticker on a rail. */
   glyph?: "arrow" | "triangle";
+  /** Which ground this is read on; decides the sentiment pair. */
+  ground?: "canvas" | "cover";
   className?: string;
 }
 
@@ -46,7 +61,8 @@ const SIZE_CLASS = {
 const GLYPH_SIZE = { xs: 9, sm: 10, md: 11 } as const;
 
 export function VarianceValue({
-  variance, children, label, size = "sm", showGlyph = true, glyph = "arrow", className,
+  variance, children, label, size = "sm", showGlyph = true, glyph = "arrow",
+  ground = "canvas", className,
 }: VarianceValueProps) {
   const Icon =
     variance.direction === "up" ? ArrowUp
@@ -61,7 +77,7 @@ export function VarianceValue({
     <span
       className={cn(
         "inline-flex items-center gap-1 font-medium tnum whitespace-nowrap",
-        SENTIMENT_CLASS[variance.sentiment],
+        SENTIMENT_CLASS[ground][variance.sentiment],
         SIZE_CLASS[size],
         className,
       )}
@@ -74,7 +90,11 @@ export function VarianceValue({
         )
       )}
       <span>{children}</span>
-      {label && <span className="text-secondary font-normal">{label}</span>}
+      {label && (
+        <span className={cn("font-normal", ground === "cover" ? "text-cover-on/60" : "text-secondary")}>
+          {label}
+        </span>
+      )}
     </span>
   );
 }

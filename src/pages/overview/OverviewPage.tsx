@@ -1,67 +1,55 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useReportingDataset } from "@/app/providers/ReportingDataProvider";
 import { ConfiguredReporting } from "@/components/finance/ConfiguredReporting";
 import { useFilters } from "@/app/providers/FilterProvider";
-import { Section, SectionRow } from "@/components/layout/Section";
-import { Masthead } from "@/components/layout/Masthead";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { Section } from "@/components/layout/Section";
+import { CoverBand } from "@/components/overview/CoverBand";
 import { Meter } from "@/components/ui/Meter";
-import { KpiBand } from "@/components/finance/KpiBand";
 import { buildPerformanceHeadline } from "@/components/finance/performanceHeadline";
-import { NumberedInsightList } from "@/components/finance/InsightList";
-import { RankedBarList, type RankedItem } from "@/components/finance/RankedBarList";
-import { ReportingUnavailable } from "@/components/finance/ReportingAvailability";
 import { VarianceValue } from "@/components/finance/VarianceValue";
-import { TrendChart } from "@/components/charts/TrendChart";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
-import { CompositionChart, type CompositionSlice } from "@/components/charts/CompositionChart";
 import { StatementTable } from "@/components/tables/StatementTable";
+import { numberedNavigation } from "@/config/navigation";
 import {
-  periodsForBasis, selectBreakdown, selectEbitdaBridge, selectEntityPerformance,
-  selectFullYearOutlook, selectInsights, selectKpis, selectMetricSeries,
-  selectProfitAndLoss,
+  periodsForBasis, selectEbitdaBridge, selectFullYearOutlook, selectInsights,
+  selectKpis, selectMetricSeries, selectProfitAndLoss, selectReportLibrary,
 } from "@/domain/selectors";
-import {
-  reportingCapabilities, selectAvailable, selectModuleAvailability,
-} from "@/domain/selectors/availability";
+import { reportingCapabilities, selectAvailable } from "@/domain/selectors/availability";
+import type { KpiDatum } from "@/domain/selectors/kpi";
+import type { Insight } from "@/domain/selectors/insights";
 import { calculateVariance } from "@/domain/metrics/variance";
 import { getMetric } from "@/domain/metrics";
-import { formatBasisPoints, formatCurrency, formatPercentage } from "@/utils/format";
+import { formatCurrency, formatMetric, formatMetricDelta, formatPercentage } from "@/utils/format";
 
 /**
- * EXECUTIVE OVERVIEW — NORTH HOUSE
+ * EXECUTIVE OVERVIEW — THE FRONT OF THE BOOK
  * ---------------------------------------------------------------------------
- * The opening spread of the reporting pack, composed as a document rather than
- * assembled as a dashboard:
+ * Every other page in this product is a working document: a statement, a
+ * trading report, a reconciliation. This one is not, and had no business
+ * looking like one. It is the cover and the contents — the two things a reader
+ * meets before they have decided what to read.
  *
- *   masthead      the performance statement, the commentary, the plate
- *   KPI band      four figures on one ruled band, divided by hairlines
- *   01 | 02       trading performance against the sales mix      (60 / 40)
- *   03 | 04       the P&L summary against the key drivers        (60 / 40)
- *   05            the EBITDA bridge, full measure
- *   06            entity performance
+ *   cover      inverted, full-bleed, the headline standing on the shape of its
+ *              own trailing year
+ *   figures    three results, unruled, each hung on its own hairline
+ *   outlook    where the full year is heading, on one line
+ *   contents   every other page in the pack, each with a live reading of what
+ *              it currently says — the index IS the navigation
+ *   movements  what changed, set as statements rather than as a list
+ *   bridge     the one exhibit the cover earns: how EBITDA got here
+ *   result     the group result in brief
  *
- * Nothing on this page is boxed. Charts and tables sit directly on the canvas
- * and are separated by rules and whitespace, so the spread reads continuously
- * from the headline down rather than as a stack of independent modules.
+ * Deliberately NOT here: a trading series with a measure toggle, a channel mix
+ * ring, an entity ranking. Every one of them is a Sales page exhibit, and
+ * repeating them was what made the two pages read as the same page twice.
  *
- * It is composed entirely from shared primitives and existing selectors: no
- * chart code, no formatting and no arithmetic of its own.
+ * No section numerals. A cover is not chapter one.
  */
 
-/** The headline figures. Matches the metrics the reporting spec supports. */
-const OVERVIEW_KPIS = ["revenue", "ebitda", "netProfit", "grossMargin"];
-
-/** Measures the trading exhibit can plot, all backed by the metric registry. */
-const TRADING_MEASURES = [
-  { value: "revenue", label: "Revenue" },
-  { value: "grossProfit", label: "Gross Profit" },
-  { value: "ebitda", label: "EBITDA" },
-  { value: "netProfit", label: "Net Profit" },
-] as const;
-type TradingMeasure = (typeof TRADING_MEASURES)[number]["value"];
-
-type RankMetric = "revenue" | "margin" | "ebitda";
+/** The headline figure, and the three results set beneath it. */
+const LEAD_KPI = "revenue";
+const SUPPORTING_KPIS = ["ebitda", "netProfit", "grossMargin"];
 
 export function OverviewPage() {
   const dataset = useReportingDataset();
@@ -73,22 +61,24 @@ function DemoOverviewPage() {
   const { selection, currentPeriod, basis } = useFilters();
   const capabilities = reportingCapabilities(dataset);
 
-  const [measure, setMeasure] = useState<TradingMeasure>("revenue");
-  const [rankMetric, setRankMetric] = useState<RankMetric>("revenue");
+  const kpis = useMemo(
+    () => selectKpis([LEAD_KPI, ...SUPPORTING_KPIS], selection),
+    [selection],
+  );
+  const lead = kpis[0];
+  const supporting = kpis.slice(1);
 
-  const kpis = useMemo(() => selectKpis(OVERVIEW_KPIS, selection), [selection]);
   const headline = useMemo(() => buildPerformanceHeadline(kpis), [kpis]);
   const insights = useMemo(() => selectInsights(selection), [selection]);
 
-  // The trading exhibit uses a rolling twelve months rather than the reporting
-  // basis: a nine-month year-to-date makes a thin chart, and the trailing year
-  // is the shape an executive is actually looking for.
-  const trend = useMemo(() => {
-    const periods = periodsForBasis("R12", selection.periodId);
-    return selectMetricSeries(measure, periods, selection.entityId);
-  }, [selection, measure]);
+  // The silhouette behind the headline is the trailing year, whatever basis is
+  // being reported: a nine-month year-to-date makes a stub, and the shape a
+  // reader is looking for on a cover is the year.
+  const year = useMemo(
+    () => selectMetricSeries(LEAD_KPI, periodsForBasis("R12", selection.periodId), selection.entityId),
+    [selection],
+  );
 
-  // Every section below is gated on what the active dataset actually supports.
   const outlook = useMemo(
     () => selectAvailable("forecast", () => selectFullYearOutlook(selection), dataset),
     [selection, dataset],
@@ -97,189 +87,46 @@ function DemoOverviewPage() {
     () => (capabilities.hasPnl ? selectEbitdaBridge(selection) : []),
     [selection, capabilities],
   );
-  const salesMix = useMemo(
-    () =>
-      capabilities.hasSales && dataset.dimensions.channels.length > 0
-        ? selectBreakdown(selection, "channelId")
-        : [],
-    [selection, capabilities, dataset],
-  );
   const pnlRows = useMemo(() => selectProfitAndLoss(selection), [selection]);
-  const entityPerformance = useMemo(() => selectEntityPerformance(selection), [selection]);
-
-  const mixSlices = useMemo<CompositionSlice[]>(
-    () =>
-      salesMix.map((row) => ({
-        id: row.id,
-        label: row.name,
-        value: row.revenue,
-        comparison:
-          row.growth === undefined ? undefined : formatPercentage(row.growth, { showSign: true }),
-        comparisonTone:
-          row.growth === undefined ? "neutral" : row.growth >= 0 ? "positive" : "negative",
-      })),
-    [salesMix],
-  );
-  const mixTotal = useMemo(
-    () => salesMix.reduce((sum, row) => sum + row.revenue, 0),
-    [salesMix],
-  );
-
-  // Each measure carries its own primary value and its own comparative, so the
-  // toggle changes what is ranked rather than just relabelling the same bars.
-  const rankedItems = useMemo<RankedItem[]>(() => {
-    const tone = (value: number | undefined) =>
-      value === undefined ? ("neutral" as const)
-        : value >= 0 ? ("positive" as const) : ("negative" as const);
-
-    const rows = entityPerformance.map((entity): RankedItem => {
-      if (rankMetric === "revenue") {
-        return {
-          id: entity.id,
-          label: entity.name,
-          value: entity.revenue,
-          display: formatCurrency(entity.revenue),
-          secondary: entity.revenueGrowth === undefined
-            ? undefined
-            : formatPercentage(entity.revenueGrowth, { showSign: true }),
-          secondaryTone: tone(entity.revenueGrowth),
-        };
-      }
-      if (rankMetric === "margin") {
-        return {
-          id: entity.id,
-          label: entity.name,
-          value: entity.grossMargin,
-          display: formatPercentage(entity.grossMargin),
-          secondary: entity.marginMovement === undefined
-            ? undefined
-            : formatBasisPoints(entity.marginMovement, { showSign: true }),
-          secondaryTone: tone(entity.marginMovement),
-        };
-      }
-      return {
-        id: entity.id,
-        label: entity.name,
-        value: entity.ebitda,
-        display: formatCurrency(entity.ebitda),
-        secondary: entity.ebitdaGrowth === undefined
-          ? undefined
-          : formatPercentage(entity.ebitdaGrowth, { showSign: true }),
-        secondaryTone: tone(entity.ebitdaGrowth),
-      };
-    });
-    return rows.sort((a, b) => b.value - a.value);
-  }, [entityPerformance, rankMetric]);
-
-  const measureLabel =
-    TRADING_MEASURES.find((option) => option.value === measure)?.label ?? "Revenue";
 
   return (
     <>
-      <Masthead
-        eyebrow="Overview"
+      <CoverBand
+        eyebrow={`${dataset.profile.companyName} · Group reporting`}
+        stamp={`${currentPeriod.label} · ${currentPeriod.fiscalYear} P${currentPeriod.fiscalPeriod} · ${basis}`}
         title={headline.text ?? `${currentPeriod.label} results reported.`}
-        lede={`${dataset.profile.companyName} · ${currentPeriod.label} reporting pack. Group results with variance to plan and to last year.`}
-        commentary={insights[0]?.text}
-        context={[
-          { label: "Period", value: currentPeriod.label },
-          { label: "Basis", value: basis },
-          { label: "Fiscal", value: `${currentPeriod.fiscalYear} · P${currentPeriod.fiscalPeriod}` },
-          { label: "Currency", value: dataset.profile.reportingCurrency },
-        ]}
-      />
+        series={year}
+        currentPeriodId={currentPeriod.id}
+        figure={<CoverFigure datum={lead} basis={basis} />}
+      >
+        {insights[0]?.text}
+      </CoverBand>
 
-      <div className="mt-9">
-        <KpiBand data={kpis} emphasiseFirst />
-      </div>
+      <FigureRow data={supporting} />
 
       {outlook && <OutlookStrip outlook={outlook} />}
 
-      {/* 01 | 02 --------------------------------------------------------------- */}
-      <div className="mt-10 flex flex-col gap-10">
-        <SectionRow>
-          <Section
-            flushTop
-            number="01"
-            title="Trading performance"
-            meta="Rolling 12 months"
-            actions={
-              <SegmentedControl
-                aria-label="Trading measure"
-                value={measure}
-                onChange={setMeasure}
-                options={TRADING_MEASURES.map((option) => ({ ...option }))}
-              />
-            }
-          >
-            <TrendChart
-              data={trend}
-              height={306}
-              actualLabel={`${measureLabel} — actual`}
-              priorYearLabel="Last year"
-              budgetLabel="Budget"
-            />
-          </Section>
+      <div className="mt-11 flex flex-col gap-11">
+        <Section
+          flushTop
+          title="In this pack"
+          meta={currentPeriod.label}
+          description="Every report in the pack, with what it currently says. Each line opens the page it reads from."
+        >
+          <PackIndex />
+        </Section>
 
-          <Section
-            flushTop
-            number="02"
-            title="Sales mix"
-            meta={mixSlices.length > 0 ? "By channel" : undefined}
-          >
-            {mixSlices.length > 0 ? (
-              <CompositionChart
-                slices={mixSlices}
-                // Ranked by revenue, so the mix reads as one hue light to dark
-                // rather than as four unrelated colours competing for meaning.
-                mode="sequential"
-                surface="canvas"
-                height={238}
-                centreValue={formatCurrency(mixTotal)}
-                centreLabel="Total sales"
-              />
-            ) : (
-              <ReportingUnavailable message={selectModuleAvailability("sales", dataset).message} />
-            )}
-          </Section>
-        </SectionRow>
+        <Section
+          title="What moved"
+          meta="Derived from reported results"
+          description="The findings the working pages carry, in the order they matter."
+        >
+          <MovementNotes insights={insights} />
+        </Section>
 
-        {/* 03 | 04 ------------------------------------------------------------- */}
-        <SectionRow>
-          <Section
-            flushTop
-            number="03"
-            title="Profit & Loss summary"
-            meta="$'000"
-            description={`${basis} to ${currentPeriod.label}, against budget.`}
-          >
-            <StatementTable
-              rows={pnlRows}
-              actualLabel={`${basis} ${currentPeriod.label}`}
-              columnSet="budgetOnly"
-              scale="thousands"
-            />
-          </Section>
-
-          <Section
-            flushTop
-            number="04"
-            title="Key drivers"
-            meta="Derived from reported results"
-          >
-            {insights.length > 0 ? (
-              <NumberedInsightList insights={insights} />
-            ) : (
-              <p className="type-body">No movements of note in the reported results.</p>
-            )}
-          </Section>
-        </SectionRow>
-
-        {/* 05 ------------------------------------------------------------------ */}
         {bridge.length > 2 && (
           <Section
-            number="05"
-            title="EBITDA bridge"
+            title="How EBITDA got here"
             meta={`${currentPeriod.fiscalYear} vs last year`}
             description="Movement decomposed into the drivers the model reports. Opening and closing columns are levels; the bars between them are movements."
           >
@@ -287,31 +134,270 @@ function DemoOverviewPage() {
           </Section>
         )}
 
-        {/* 06 ------------------------------------------------------------------ */}
         <Section
-          number="06"
-          title="Entity performance"
-          meta={`${entityPerformance.length} reporting entities`}
-          description="Reporting entities as defined by the active dataset's entity dimension."
-          actions={
-            <SegmentedControl
-              aria-label="Ranking measure"
-              value={rankMetric}
-              onChange={setRankMetric}
-              options={[
-                { value: "revenue", label: "Revenue" },
-                { value: "margin", label: "Margin" },
-                { value: "ebitda", label: "EBITDA" },
-              ]}
-            />
-          }
+          title="The group result"
+          meta={`$'000 · ${basis} ${currentPeriod.label}`}
+          description="The statement in brief. Profit & Loss carries it in full, by division and by cost centre."
         >
-          <div className="max-w-[980px]">
-            <RankedBarList items={rankedItems} showIndex />
-          </div>
+          <StatementTable
+            rows={pnlRows}
+            actualLabel={currentPeriod.label}
+            columnSet="priorOnly"
+            totalTreatment="band"
+          />
         </Section>
       </div>
     </>
+  );
+}
+
+/**
+ * THE COVER FIGURE
+ * ---------------------------------------------------------------------------
+ * One number, set at the largest size anywhere in the product, hung off the
+ * right of the headline. It is the reporting basis the reader selected, not a
+ * window of the page's choosing — the filter bar says year to date, so this
+ * says year to date.
+ */
+function CoverFigure({ datum, basis }: { datum: KpiDatum; basis: string }) {
+  return (
+    <div className="lg:flex lg:flex-col lg:items-end">
+      <div className="text-[10.5px] tracking-[0.16em] uppercase text-cover-on/55">
+        {datum.metric.name} · {basis}
+      </div>
+      <div className="font-serif tracking-[-0.022em] leading-[0.94] text-[clamp(48px,6.4vw,94px)] tnum mt-2">
+        {formatMetric(datum.value, datum.metric)}
+      </div>
+      <div className="flex items-baseline gap-x-6 gap-y-2 mt-4 flex-wrap lg:justify-end">
+        {datum.variance && (
+          <VarianceValue variance={datum.variance} label={datum.comparisonLabel} size="md" ground="cover">
+            {formatMetricDelta(datum.variance.absolute, datum.variance.relative, datum.metric)}
+          </VarianceValue>
+        )}
+        {datum.secondary && (
+          <VarianceValue
+            variance={datum.secondary.variance}
+            label={datum.secondary.label}
+            size="md"
+            ground="cover"
+          >
+            {formatMetricDelta(
+              datum.secondary.variance.absolute,
+              datum.secondary.variance.relative,
+              datum.metric,
+            )}
+          </VarianceValue>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * THE FIGURE ROW
+ * ---------------------------------------------------------------------------
+ * The results under the headline. Not the KPI band the working pages use: no
+ * enclosing rules and no dividers between cells, each figure instead hung on a
+ * hairline of its own with the variance below the line. Three, not four — the
+ * fourth figure is the one on the cover.
+ */
+function FigureRow({ data }: { data: KpiDatum[] }) {
+  if (data.length === 0) return null;
+
+  return (
+    <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-8">
+      {data.map((datum) => (
+        <div key={datum.metric.id} className="min-w-0">
+          <div className="type-label">{datum.metric.shortName ?? datum.metric.name}</div>
+          <div className="font-serif text-[clamp(30px,3vw,42px)] leading-none tracking-[-0.015em] tnum mt-3 text-primary">
+            {formatMetric(datum.value, datum.metric)}
+          </div>
+          <div className="mt-3.5 pt-3 border-t border-strong flex items-baseline gap-x-5 gap-y-1.5 flex-wrap">
+            {datum.variance ? (
+              <VarianceValue variance={datum.variance} label={datum.comparisonLabel}>
+                {formatMetricDelta(datum.variance.absolute, datum.variance.relative, datum.metric)}
+              </VarianceValue>
+            ) : (
+              <span className="type-caption">No comparative</span>
+            )}
+            {datum.secondary && (
+              <VarianceValue variance={datum.secondary.variance} label={datum.secondary.label}>
+                {formatMetricDelta(
+                  datum.secondary.variance.absolute,
+                  datum.secondary.variance.relative,
+                  datum.metric,
+                )}
+              </VarianceValue>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * THE CONTENTS
+ * ---------------------------------------------------------------------------
+ * The pack's own table of contents, and the idea this page is built around: a
+ * reader arriving at an overview wants to know what is in the book and whether
+ * any of it needs them. So every page is listed, in the order the navigation
+ * defines, each carrying a live reading of what it currently says.
+ *
+ * Readings come from the metric registry and the same selectors the destination
+ * page calls, so a line here can never disagree with the page it opens. A page
+ * whose module the dataset does not support is listed without a reading rather
+ * than dropped: a contents page that hides chapters is not a contents page.
+ */
+interface IndexReading {
+  metricId?: string;
+  /** Stated instead of a metric where the page has no single headline figure. */
+  note?: string;
+}
+
+function PackIndex() {
+  const dataset = useReportingDataset();
+  const { selection } = useFilters();
+  const capabilities = reportingCapabilities(dataset);
+
+  // What each page leads with. Only metrics the registry defines and the
+  // resolvers can produce; a page with no single figure says what it is for.
+  const readings: Record<string, IndexReading> = useMemo(
+    () => ({
+      sales: capabilities.hasSales ? { metricId: "totalSales" } : { note: "No sales facts supplied" },
+      kpis: capabilities.hasSales ? { metricId: "transactions" } : { note: "Operational measures" },
+      pnl: capabilities.hasPnl ? { metricId: "ebitda" } : { note: "No ledger supplied" },
+      "balance-sheet": capabilities.hasBalanceSheet
+        ? { metricId: "netDebt" }
+        : { note: "No balance sheet supplied" },
+      "cash-flow": capabilities.hasCashFlow
+        ? { metricId: "operatingCashFlow" }
+        : { note: "No cash flow supplied" },
+      forecasts: capabilities.hasForecast
+        ? { note: "Scenarios, risks and opportunities" }
+        : { note: "No forecast supplied" },
+      variance: capabilities.hasBudget
+        ? { note: "Actual against plan, line by line" }
+        : { note: "No plan supplied" },
+      reports: { note: "Schedules, exports and board packs" },
+      "data-mapping": { note: "Coverage, exceptions and lineage" },
+      settings: { note: "Reporting preferences" },
+    }),
+    [capabilities],
+  );
+
+  const metricIds = useMemo(
+    () => [...new Set(Object.values(readings).map((r) => r.metricId).filter((id): id is string => !!id))],
+    [readings],
+  );
+  const data = useMemo(() => selectKpis(metricIds, selection), [metricIds, selection]);
+  const byMetric = useMemo(
+    () => new Map(data.map((datum) => [datum.metric.id, datum])),
+    [data],
+  );
+
+  const library = useMemo(() => selectReportLibrary(dataset), [dataset]);
+
+  // The numbered navigation, so the contents carries the same ordinals the
+  // sidebar does. A contents page that numbers its chapters differently from
+  // the spine is worse than one that does not number them at all.
+  const groups = useMemo(() => numberedNavigation(), []);
+
+  return (
+    // The groups run side by side, the way a contents page sets its parts —
+    // not stacked, which turns a nine-line index into a column of scrolling.
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-9 gap-y-8">
+      {groups.map((group) => {
+        const items = group.items.filter((item) => item.id !== "overview");
+        if (items.length === 0) return null;
+
+        return (
+          <div key={group.id} className="min-w-0">
+            <div className="type-label">{group.label}</div>
+            <ul className="mt-2.5">
+              {items.map((item) => {
+                const reading = readings[item.id];
+                const datum = reading?.metricId ? byMetric.get(reading.metricId) : undefined;
+                // The library is the reports page's own count, read from the
+                // same selector that page reads.
+                const note =
+                  item.id === "reports" && library.scheduled.length > 0
+                    ? `${library.scheduled.length} schedules · ${library.boardPacks.length} board packs`
+                    : reading?.note;
+
+                return (
+                  <li key={item.id}>
+                    <Link
+                      to={item.path}
+                      className="group grid grid-cols-[1.9rem_minmax(0,1fr)] items-baseline gap-x-2.5 py-3 border-b border-subtle hover:bg-inset transition-colors"
+                    >
+                      <span className="type-section-number text-tertiary">{item.ordinal}</span>
+                      <span className="min-w-0">
+                        <span className="text-[13px] text-primary group-hover:underline underline-offset-[3px]">
+                          {item.label}
+                        </span>
+                        {/* The figure IS the reading. A note as well as a figure
+                            says the same thing twice in half the width. */}
+                        {!datum && note && (
+                          <span className="type-caption block mt-0.5">{note}</span>
+                        )}
+                        {datum && (
+                          <span className="flex items-baseline gap-2 mt-1">
+                            <span className="text-[13px] font-semibold text-primary tnum">
+                              {formatMetric(datum.value, datum.metric)}
+                            </span>
+                            {datum.variance ? (
+                              <VarianceValue variance={datum.variance} size="xs" glyph="triangle">
+                                {formatMetricDelta(
+                                  datum.variance.absolute,
+                                  datum.variance.relative,
+                                  datum.metric,
+                                )}
+                              </VarianceValue>
+                            ) : (
+                              <span className="type-caption">No comparative</span>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * WHAT MOVED
+ * ---------------------------------------------------------------------------
+ * The same findings the working pages carry, set as statements rather than as
+ * a numbered list: the ordinal is large and quiet, the sentence is the size of
+ * body copy that expects to be read, and a rule separates one from the next.
+ */
+function MovementNotes({ insights }: { insights: Insight[] }) {
+  if (insights.length === 0) {
+    return <p className="type-body">No movements of note in the reported results.</p>;
+  }
+
+  return (
+    <ol className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-10">
+      {insights.slice(0, 6).map((insight, index) => (
+        <li
+          key={insight.id}
+          className="grid grid-cols-[2.1rem_minmax(0,1fr)] gap-x-3 py-4 border-b border-subtle"
+        >
+          <span className="font-serif text-[19px] leading-none text-tertiary tnum pt-[3px]">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <p className="type-body-lead">{insight.text}</p>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -320,15 +406,15 @@ function DemoOverviewPage() {
  * ---------------------------------------------------------------------------
  * Progress against the full-year position — actual to date, forecast to go and
  * the variance to budget the forecast selector already computed — set as a
- * single line hung off the KPI band rather than as a block of its own. Shown
- * only where the dataset supports forecasting.
+ * single line beneath the figures rather than as a block of its own. Shown only
+ * where the dataset supports forecasting.
  */
 function OutlookStrip({ outlook }: { outlook: ReturnType<typeof selectFullYearOutlook> }) {
   const variance = calculateVariance(outlook.forecast, outlook.budget, getMetric("ebitda"));
   const progress = outlook.forecast === 0 ? 0 : outlook.actualToDate / outlook.forecast;
 
   return (
-    <div className="flex items-center gap-x-9 gap-y-3 flex-wrap py-3.5 border-b border-subtle">
+    <div className="mt-10 flex items-center gap-x-9 gap-y-3 flex-wrap py-3.5 border-y border-subtle">
       <span className="type-label shrink-0">Full-year EBITDA outlook</span>
 
       <div className="flex items-center gap-3 min-w-[220px] flex-1 max-w-[420px]">

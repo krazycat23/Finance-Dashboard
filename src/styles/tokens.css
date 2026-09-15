@@ -77,6 +77,22 @@
   --positive-soft: #e1ebe1;
   --negative: #9d3b30; /* restrained, muted red */
   --negative-soft: #f2e2dd;
+
+  /* THE COVER GROUND. The one inverted surface in the product, used by the
+     Overview cover band. Sand inverts DOWN — ivory type on deep forest. The
+     plate tokens cannot serve here: in Obsidian the plate ink is darker than
+     the canvas, so reusing it would make the cover disappear into the page.
+     Obsidian therefore inverts UP, onto a warm bronze-brown that reads as a
+     panel against near-black. */
+  --cover-ground: #17362a;
+  --cover-on: #f4efe4;
+
+  /* Sentiment READ ON THE COVER. The canvas pair is dark by design and a dark
+     green on deep forest is unreadable, so the cover carries its own light
+     pair. Favourability still drives the colour — the ground changed, not the
+     rule. */
+  --positive-cover: #9ec9ad;
+  --negative-cover: #e3a79c;
   --caution: #8c6a1c;
   --caution-soft: #f2e8d0;
   --neutral: #565c52;
@@ -173,6 +189,10 @@
 
   --positive: #85a56c; /* subtle olive */
   --positive-soft: #1e2418;
+  --cover-ground: #2c2418;
+  --cover-on: #f0e7d6;
+  --positive-cover: #a8c48d;
+  --negative-cover: #dd9a8d;
   --negative: #c2685c; /* restrained red */
   --negative-soft: #2b1a17;
   --caution: #c19a4c;

@@ -144,13 +144,18 @@ Three tonal levels create depth. A page must never be one flat field.
 
 ## Page patterns
 
-Every reporting page is: **masthead → KPI band → numbered sections**, with the
-sections in varied spreads rather than a repeating stack. No two consecutive
-sections share a shape.
+Every *reporting* page is: **masthead → KPI band → numbered sections**, with
+the sections in varied spreads rather than a repeating stack. No two
+consecutive sections share a shape.
+
+The Overview is the exception, and deliberately so. It is the cover and the
+contents, not a report, and following the reporting pattern made it read as a
+second copy of the Sales page. It has no masthead, no KPI band and no
+numerals — see **The cover** below.
 
 | Page | Shape |
 |---|---|
-| Overview | 01\|02 65/35 · 03\|04 60/40 · 05 · 06 |
+| Overview | cover band · figures · contents spread · movements · bridge · result |
 | Sales | 01\|02 65/35 · 03\|04 55/45 · 05 paired · 06 |
 | P&L | 01 statement band · 02\|03 40/60 · 04\|05 40/60 · 06 |
 | Forecast | 01 · 02\|03 55/45 · 04\|05 60/40 · 06 |
@@ -163,6 +168,33 @@ sections share a shape.
 | Data & Mapping | masthead only — density and workflow win over composition |
 
 A page has **at most one** `StatementBand`: the statement that anchors it.
+
+### The cover
+
+The Overview inverts, and is the only page that may. The rules it does not
+share with the rest of the system:
+
+- **The cover ground.** `--cover-ground` / `--cover-on`, full-bleed to both
+  edges of the measure. Sand inverts *down* onto deep forest; Obsidian inverts
+  *up* onto warm bronze-brown, because its plate ink is darker than its canvas
+  and reusing it would make the cover vanish into the page. A 2px
+  `--accent-warm` rule closes the band in both themes.
+- **Sentiment on the cover.** `--positive-cover` / `--negative-cover`, a light
+  pair. Favourability still decides the colour; only the ground changed.
+  `VarianceValue` takes `ground="cover"`.
+- **The silhouette.** The trailing twelve months drawn as bare columns along
+  the foot of the band — no axis, no grid, no labels, and drawn with layout
+  rather than a charting library. It is indexed to the strongest month, not to
+  zero: a year of monthly revenue sits within a fifth of itself, so a
+  zero-based silhouette is a row of identical bricks. The foot of the band says
+  it is indexed, and it is never offered as a chart.
+- **No numerals.** A cover is not chapter one.
+
+The contents spread is the page's organising idea: every other page listed in
+navigation order, each with a live reading taken from the same selector the
+destination page calls, so a line here cannot disagree with the page it opens.
+Pages the dataset cannot support are listed *without* a reading rather than
+dropped — a contents page that hides chapters is not a contents page.
 
 ---
 
