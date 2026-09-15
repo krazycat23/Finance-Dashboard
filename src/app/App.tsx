@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { FilterProvider } from "./providers/FilterProvider";
@@ -21,6 +21,17 @@ import { DataMappingPage } from "@/pages/data-mapping/DataMappingPage";
 import { SettingsPage } from "@/pages/settings/SettingsPage";
 
 /**
+ * The application serves paths, which needs a host that rewrites unknown paths
+ * onto index.html. A static preview build has no such host, so VITE_HASH_ROUTES
+ * switches the same routes onto the fragment and the build becomes portable —
+ * openable from a subdirectory, a file share or a review link.
+ *
+ * It changes the shape of the URL and nothing else: the route table below is
+ * the one and only definition either way.
+ */
+const Router = import.meta.env.VITE_HASH_ROUTES === "true" ? HashRouter : BrowserRouter;
+
+/**
  * Providers wrap the router so that theme and global filters survive
  * navigation. Routes mirror config/navigation.ts one-for-one.
  */
@@ -29,7 +40,7 @@ export function App() {
     <ReportingDataProvider adapter={reportingAdapter}>
       <ThemeProvider>
         <FilterProvider>
-        <BrowserRouter>
+        <Router>
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<OverviewPage />} />
@@ -46,7 +57,7 @@ export function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
-        </BrowserRouter>
+        </Router>
         </FilterProvider>
       </ThemeProvider>
     </ReportingDataProvider>
