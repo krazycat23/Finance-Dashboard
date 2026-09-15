@@ -274,6 +274,19 @@ export const metrics: MetricRegistry = Object.fromEntries(
       domain: "workingCapital",
     }),
     define({
+      id: "gearing",
+      name: "Gearing",
+      format: "percentage",
+      favourableDirection: "down",
+      aggregation: "derived",
+      precision: 1,
+      // A move in gearing is a move in percentage points, and the product
+      // states those in basis points as it does for every other margin.
+      deltaFormat: "bps",
+      domain: "workingCapital",
+      description: "Net debt as a share of net debt plus equity.",
+    }),
+    define({
       id: "netDebtToEbitda",
       name: "Net Debt / EBITDA",
       format: "times",
@@ -281,6 +294,22 @@ export const metrics: MetricRegistry = Object.fromEntries(
       aggregation: "derived",
       precision: 2,
       domain: "workingCapital",
+      // A balance over a flow. Net debt is a position at the close and EBITDA
+      // is twelve months of trading, so the two sides come from different
+      // windows and no single-window resolver can produce it honestly.
+      standalone: true,
+      description: "Closing net debt against the last twelve months of EBITDA.",
+    }),
+    define({
+      id: "interestCover",
+      name: "Interest Cover",
+      format: "times",
+      favourableDirection: "up",
+      aggregation: "derived",
+      precision: 1,
+      domain: "workingCapital",
+      standalone: true,
+      description: "Last twelve months of EBIT against the interest it paid.",
     }),
 
     // ---- Sales -----------------------------------------------------------

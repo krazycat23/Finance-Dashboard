@@ -72,6 +72,16 @@ const RESOLVERS: Record<string, Resolver> = {
     l.totalCurrentLiabilities
       ? ((l.totalCurrentAssets ?? 0) - (l.inventory ?? 0)) / l.totalCurrentLiabilities
       : undefined,
+  // Net debt against the capital behind it. Both sides are closing balances,
+  // so unlike net debt to EBITDA this is honest within a single window.
+  gearing: (l) => {
+    const netDebt =
+      (l.borrowingsCurrent ?? 0) + (l.borrowingsNonCurrent ?? 0) +
+      (l.leaseLiabilitiesCurrent ?? 0) + (l.leaseLiabilitiesNonCurrent ?? 0) -
+      (l.cash ?? 0);
+    const capital = netDebt + (l.totalEquity ?? 0);
+    return capital > 0 ? netDebt / capital : undefined;
+  },
   cashRatio: (l) =>
     l.totalCurrentLiabilities ? (l.cash ?? 0) / l.totalCurrentLiabilities : undefined,
 };

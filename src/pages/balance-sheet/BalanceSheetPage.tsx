@@ -11,7 +11,7 @@ import { calculateVariance } from "@/domain/metrics/variance";
 import { getMetric } from "@/domain/metrics";
 import type { StatementLine, StatementRow } from "@/domain/models";
 import {
-  periodsForBasis, selectBalanceSheet, selectInsights, selectKpis,
+  periodsForBasis, selectBalanceSheet, selectInsights, selectKpis, selectLeverage,
   selectWorkingCapitalDays,
 } from "@/domain/selectors";
 import { formatCurrency, formatDays, formatMetric } from "@/utils/format";
@@ -35,13 +35,14 @@ import { formatCurrency, formatDays, formatMetric } from "@/utils/format";
 
 /**
  * The capital measures. Total assets is a canonical line the aggregation
- * already derives; the registry now names it so the rail can present it.
- * Gearing is NOT shown: net debt over equity is a ratio the model does not
- * define, and deriving it here would be the one figure on the page the rest of
- * the product could contradict. Net debt to EBITDA is registered but has no
- * resolver, so it would render a confident 0.00x — worse than absent.
+ * already derives; the registry names it so the rail can present it.
+ *
+ * Gearing is a pure balance ratio — net debt over net debt plus equity, both
+ * closing positions — so it resolves in a single window like any other metric.
+ * The ratios that mix a balance with a flow do not, and are read from the
+ * leverage selector at the foot of the page instead.
  */
-const BALANCE_KPIS = ["totalAssets", "netAssets", "netDebt", "workingCapital", "currentRatio"];
+const BALANCE_KPIS = ["totalAssets", "netAssets", "netDebt", "workingCapital", "gearing"];
 
 /** The liquidity measures the registry defines, for the foot of the page. */
 const LIQUIDITY_METRICS = ["workingCapital", "netDebt", "currentRatio", "quickRatio", "cashRatio"];
@@ -68,6 +69,7 @@ export function BalanceSheetPage() {
   const rows = useMemo(() => selectBalanceSheet(selection), [selection]);
   const days = useMemo(() => selectWorkingCapitalDays(selection), [selection]);
   const insights = useMemo(() => selectInsights(selection, "cash"), [selection]);
+  const leverage = useMemo(() => selectLeverage(selection), [selection]);
 
   // The comparative column is the prior CLOSE, so it must be labelled with that
   // month rather than inheriting the reporting month's caption.
@@ -94,6 +96,36 @@ export function BalanceSheetPage() {
       })),
     [liquidity],
   );
+
+  /**
+   * The leverage ratios. Each is undefined rather than zero where it cannot be
+   * stated — net cash has no debt multiple, and a company paying no interest
+   * has no cover — so the list simply omits it instead of asserting a figure.
+   */
+  const leverageItems = useMemo<RatioItem[]>(() => {
+    const build = (
+      metricId: string,
+      value: number | undefined,
+      prior: number | undefined,
+    ): RatioItem | undefined => {
+      if (value === undefined) return undefined;
+      const metric = getMetric(metricId);
+      const variance = calculateVariance(value, prior, metric);
+      return {
+        id: metricId,
+        label: metric.name,
+        display: formatMetric(value, metric),
+        variance,
+        varianceDisplay: variance ? formatMetric(variance.absolute, metric) : undefined,
+        comparisonLabel: "vs LY",
+      };
+    };
+    return [
+      build("netDebtToEbitda", leverage.netDebtToEbitda, leverage.priorYear.netDebtToEbitda),
+      build("interestCover", leverage.interestCover, leverage.priorYear.interestCover),
+      build("gearing", leverage.gearing, leverage.priorYear.gearing),
+    ].filter((item): item is RatioItem => item !== undefined);
+  }, [leverage]);
 
   const dayItems = useMemo<RatioItem[]>(() => {
     const build = (id: string, metricId: string, value: number, prior: number): RatioItem => {
@@ -193,6 +225,19 @@ export function BalanceSheetPage() {
                 <RatioList items={dayItems} />
               </div>
             </div>
+            {leverage.available && (
+              <div className="mt-5 pt-4 border-t border-subtle">
+                <p className="eyebrow">Leverage</p>
+                <div className="mt-2">
+                  <RatioList items={leverageItems} />
+                </div>
+                <p className="type-caption mt-3 leading-relaxed">
+                  Net debt is the position at {currentPeriod.label}; EBITDA and
+                  EBIT are the twelve months ending there. Measuring a closing
+                  balance against part of a year would flatter both.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

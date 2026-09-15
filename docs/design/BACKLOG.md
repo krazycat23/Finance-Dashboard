@@ -43,15 +43,28 @@ state rather than Northpoint's numbers.
   it from a period window, so `selectKpi` now raises instead of returning a
   confident zero. That is the guard the `netDebtToEbitda` `0.00x` needed.
 
+## Done — balance sheet leverage
+
+- `gearing` is an ordinary resolver: net debt over net debt plus equity, both
+  closing positions, so it holds within a single window and sits in the
+  capital rail.
+- `netDebtToEbitda` and `interestCover` are `standalone`. They divide a
+  closing balance by a flow, so the two sides come from different windows —
+  the position at the reporting date against the twelve months ending there.
+  A single-window resolver would have divided closing net debt by nine months
+  of EBITDA and reported the answer as a covenant multiple.
+- `selectLeverage` returns all three with their prior-year equivalents, and
+  leaves a ratio undefined rather than zero where it cannot be stated: net
+  cash has no debt multiple, and a company paying no interest has no cover.
+  The page omits the row instead of asserting a figure.
+- A move in gearing is stated in basis points, as every other margin in the
+  product is.
+
 ## Not started
 
 - **Transactions and ATV over time.** The facts already carry
   `transactions` and `traffic`; this is a chart that was never drawn, not
   missing data.
-- **Balance sheet ratios.** Gearing and interest cover, and a real
-  `netDebtToEbitda` resolver. The metric is registered but unresolved; it is
-  kept off the page rather than shown as zero. Marking it `standalone: true`
-  would now make that failure loud rather than silent.
 - **P&L.** Net profit margin, and a view switcher across division, cost
   centre and account.
 - **Forecast.** A driver-level bridge.
