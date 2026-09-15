@@ -3,11 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { FilterProvider } from "./providers/FilterProvider";
 import { ReportingDataProvider } from "./providers/ReportingDataProvider";
-import { MockDataAdapter } from "@/data/mock";
 import { ReportingAvailability } from "@/components/finance/ReportingAvailability";
-
-const reportingAdapter = new MockDataAdapter();
-
 import { OverviewPage } from "@/pages/overview/OverviewPage";
 import { SalesPage } from "@/pages/sales/SalesPage";
 import { ProfitAndLossPage } from "@/pages/pnl/ProfitAndLossPage";
@@ -37,7 +33,7 @@ const Router = import.meta.env.VITE_HASH_ROUTES === "true" ? HashRouter : Browse
  */
 export function App() {
   return (
-    <ReportingDataProvider adapter={reportingAdapter}>
+    <ReportingDataProvider adapter="reference-demo">
       <ThemeProvider>
         <FilterProvider>
         <Router>

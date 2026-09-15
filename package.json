@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "verify": "node --no-warnings scripts/run-verify.mjs",
-    "verify:runtime": "playwright test"
+    "verify:runtime": "playwright test",
+    "validate:adapter": "node --no-warnings scripts/run-validate-adapter.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
