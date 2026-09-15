@@ -3,11 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { FilterProvider } from "./providers/FilterProvider";
 import { ReportingDataProvider } from "./providers/ReportingDataProvider";
-import { MockDataAdapter } from "@/data/mock";
 import { ReportingAvailability } from "@/components/finance/ReportingAvailability";
-
-const reportingAdapter = new MockDataAdapter();
-
 import { OverviewPage } from "@/pages/overview/OverviewPage";
 import { SalesPage } from "@/pages/sales/SalesPage";
 import { ProfitAndLossPage } from "@/pages/pnl/ProfitAndLossPage";
@@ -20,13 +16,9 @@ import { ReportsPage } from "@/pages/reports/ReportsPage";
 import { DataMappingPage } from "@/pages/data-mapping/DataMappingPage";
 import { SettingsPage } from "@/pages/settings/SettingsPage";
 
-/**
- * Providers wrap the router so that theme and global filters survive
- * navigation. Routes mirror config/navigation.ts one-for-one.
- */
 export function App() {
   return (
-    <ReportingDataProvider adapter={reportingAdapter}>
+    <ReportingDataProvider adapter="reference-demo">
       <ThemeProvider>
         <FilterProvider>
         <BrowserRouter>

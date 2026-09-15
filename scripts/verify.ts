@@ -1,3 +1,4 @@
+import "./verify-adapters";
 /**
  * CONSISTENCY VERIFICATION
  * ---------------------------------------------------------------------------

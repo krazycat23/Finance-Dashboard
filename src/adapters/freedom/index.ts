@@ -1,0 +1,15 @@
+import { CANONICAL_REPORTING_SCHEMA_VERSION, type AdapterInput, type AdapterManifest, type CanonicalReportingPackageV1, type CompanyAdapter } from "../contract";
+import { assertCanonicalReportingPackage } from "../validator";
+
+export const freedomManifest: AdapterManifest = {
+  id: "freedom-furniture", name: "Freedom Furniture", version: "1.0.0", schemaVersion: CANONICAL_REPORTING_SCHEMA_VERSION,
+  description: "Freedom Furniture workbook adapter.",
+  sourceKinds: ["excel-trial-balance", "excel-budget", "excel-financial-calendar", "excel-gl-mapping", "excel-weekly-sales"],
+  capabilities: { finance: true, sales: true, cashFlow: false, operational: false },
+};
+export const freedomAdapterManifest = { ...freedomManifest, company: "Freedom Furniture Australia", expectedInputFiles: ["FY26 Final TB.xlsx", "AUG TB.xlsx", "FY27 Budget TB.xlsx", "FY27_Fin_Calendar.xlsx", "FF_GL_PL_Mapping.xlsx", "Weekly Sales FY26.xlsx", "Weekly sales since 07.xlsx"], sourceAssumptions: ["Identifiers are strings; leading zeroes are retained.", "Financial calendar tokens are fiscal values.", "GL hierarchy is sourced from FF_GL_PL_Mapping.xlsx."] } as const;
+function packageFor(input?: AdapterInput): CanonicalReportingPackageV1 {
+  const sourceFiles = input?.files?.map((file) => file.name) ?? freedomAdapterManifest.expectedInputFiles;
+  return { id: "freedom-furniture", source: "import", periods: [], weeks: [], dimensions: { entities: [], accounts: [], departments: [], costCentres: [], locations: [], channels: [], products: [], customers: [] }, financeRecords: [], salesRecords: [], weeklySalesRecords: [], operationalRecords: [], cashFlowRecords: [], scenarios: [{ id: "actual", kind: "actual", label: "Actual" }, { id: "budget", kind: "budget", label: "FY27 Budget" }], currentPeriodId: "", defaultEntityId: "", profile: { companyName: "Freedom Furniture Australia", shortName: "Freedom", reportingCurrency: "AUD", currencySymbol: "$", locale: "en-AU", defaultScale: "thousands", fiscalCalendar: { periodicity: "monthly", fiscalYearStartMonth: 7, fiscalYearLabel: "endYear" } }, scenarioRoles: { actual: "actual", budget: "budget", forecast: "forecast" }, dataQuality: { mappingSummaries: [], unmappedMembers: [], issues: [], reconciliations: [], imports: [], health: { integrityScore: 0 } }, capabilities: { hasPnl: true, hasBalanceSheet: true, hasCashFlow: false, hasSales: true, hasWeeklySales: true, hasBudget: true, hasForecast: false, hasOperationalKpis: false }, schemaVersion: CANONICAL_REPORTING_SCHEMA_VERSION, adapterManifest: freedomManifest, generatedAt: new Date().toISOString(), sourceFiles, assumptions: [...freedomAdapterManifest.sourceAssumptions], reconciliations: [{ id: "freedom-source-availability", label: "Freedom source availability", sourceTotal: 0, canonicalTotal: 0, difference: 0, tolerance: 0 }] };
+}
+export class FreedomCompanyAdapter implements CompanyAdapter { readonly id = freedomManifest.id; readonly manifest = freedomManifest; load(input?: AdapterInput): CanonicalReportingPackageV1 { const pkg = packageFor(input); assertCanonicalReportingPackage(pkg); return pkg; } }
